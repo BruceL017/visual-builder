@@ -30,10 +30,10 @@ export const PLATFORMS = Object.freeze({
   },
   weibo: {
     specPlatform: "weibo",
-    canvas: { width: 1600, height: 900, ratio: "16:9", orientation: "horizontal" },
-    safeArea: { x: 80, y: 70, width: 1440, height: 760 },
-    reservedArea: { x: 1320, y: 44, width: 240, height: 100 },
-    brandSlot: { x: 1350, y: 64, width: 170, height: 46 },
+    canvas: { width: 1080, height: 1440, ratio: "3:4", orientation: "vertical" },
+    safeArea: { x: 80, y: 96, width: 920, height: 1248 },
+    reservedArea: { x: 842, y: 44, width: 208, height: 90 },
+    brandSlot: { x: 872, y: 64, width: 148, height: 40 },
   },
   toutiao: {
     specPlatform: "toutiao",

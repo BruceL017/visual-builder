@@ -24,7 +24,7 @@ Use these authoritative platform design coordinate systems. They define layout g
 | `wechat` | 1600 x 1200 | 4:3 | `wechat` |
 | `xhs` | 1080 x 1440 | 3:4 | `xiaohongshu` |
 | `zhihu` | 1600 x 900 | 16:9 | `zhihu` |
-| `weibo` | 1600 x 900 | 16:9 | `weibo` |
+| `weibo` | 1080 x 1440 | 3:4 | `weibo` |
 | `toutiao` | 1600 x 900 | 16:9 | `toutiao` |
 
 Accepted calibration rasters preserve native pixel dimensions when their ratio is within `0.002`. Toutiao additionally requires a shortest edge of at least `900px`; `1672 x 941` is valid.

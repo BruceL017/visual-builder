@@ -293,22 +293,22 @@ test("accepts a Weibo default candidate with branding disabled by default", () =
   });
   await mutateJson(root, "style.spec.json", (spec) => {
     spec.platform = "weibo";
-    spec.canvas = { width: 1600, height: 900, ratio: "16:9", orientation: "horizontal" };
-    spec.layout.contentSafeArea = { x: 80, y: 70, width: 1440, height: 760 };
-    spec.layout.brandReservedArea = { x: 1320, y: 44, width: 240, height: 100 };
-    spec.fixedComponents.brandSlot = { enabled: true, anchor: "top-right", x: 1350, y: 64, width: 170, height: 46, assetFit: "contain" };
+    spec.canvas = { width: 1080, height: 1440, ratio: "3:4", orientation: "vertical" };
+    spec.layout.contentSafeArea = { x: 80, y: 96, width: 920, height: 1248 };
+    spec.layout.brandReservedArea = { x: 842, y: 44, width: 208, height: 90 };
+    spec.fixedComponents.brandSlot = { enabled: true, anchor: "top-right", x: 872, y: 64, width: 148, height: 40, assetFit: "contain" };
     spec.brandPolicy.defaultEnabled = false;
   });
   await mutateJson(root, "qa.json", (qa) => {
     for (const image of qa.calibration_images) {
-      image.generation.width = 1600;
-      image.generation.height = 900;
+      image.generation.width = 1080;
+      image.generation.height = 1440;
     }
   });
   for (const id of ["concept", "process", "checklist"]) {
-    await writeFile(path.join(root, "calibration", `${id}.png`), png(1600, 900, id));
+    await writeFile(path.join(root, "calibration", `${id}.png`), png(1080, 1440, id));
   }
-  await writeFile(path.join(root, "calibration", "style-reference.png"), png(1600, 900, "concept"));
+  await writeFile(path.join(root, "calibration", "style-reference.png"), png(1080, 1440, "concept"));
 
   const result = await validateCandidate(root);
   assert.equal(result.valid, true, JSON.stringify(result.errors));

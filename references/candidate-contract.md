@@ -167,10 +167,10 @@ Platform baseline geometry:
 | `wechat` | `wechat` | `1600,1200` | `80,80,1440,1040` | `1320,44,240,100` | `1350,64,170,46` |
 | `xhs` | `xiaohongshu` | `1080,1440` | `80,96,920,1248` | `842,44,208,90` | `872,64,148,40` |
 | `zhihu` | `zhihu` | `1600,900` | `80,70,1440,760` | `1320,44,240,100` | `1350,64,170,46` |
-| `weibo` | `weibo` | `1600,900` | `80,70,1440,760` | `1320,44,240,100` | `1350,64,170,46` |
+| `weibo` | `weibo` | `1080,1440` | `80,96,920,1248` | `842,44,208,90` | `872,64,148,40` |
 | `toutiao` | `toutiao` | `1600,900` | `80,70,1440,760` | `1320,44,240,100` | `1350,64,170,46` |
 
-Use ratio `4:3` for WeChat, `3:4` for XHS, and `16:9` for Zhihu, Weibo, and Toutiao. Orientation is horizontal except for vertical XHS. Delivery images keep accepted native dimensions; Toutiao rejects a shortest edge below `900px`. Keep target-compatible input handling and generation constraints, including no crop, padding, stretching, or model-drawn brand.
+Use ratio `4:3` for WeChat, `3:4` for XHS and Weibo, and `16:9` for Zhihu and Toutiao. XHS and Weibo are vertical; the other platforms are horizontal. Delivery images keep accepted native dimensions; Toutiao rejects a shortest edge below `900px`. Keep target-compatible input handling and generation constraints, including no crop, padding, stretching, or model-drawn brand.
 
 ## qa.json
 
