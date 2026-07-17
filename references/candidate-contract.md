@@ -144,7 +144,7 @@ For image mode:
 }
 ```
 
-Require `short_edge` to equal `min(width, height)` and be at least 512. For Visual DNA mode, use `extraction_mode: "visual-dna"`, set `source` to `{ "kind": "provided-visual-dna" }`, and omit unsupported image facts. Confidence is a number from 0 through 1 when evidence supports it, otherwise `null`. The two policy booleans are always `false`.
+Require `short_edge` to equal `min(width, height)`. It must be at least 512 for a non-blocked image candidate; a smaller image is valid only in a blocked audit with reason `insufficient-design-signal`. For Visual DNA mode, use `extraction_mode: "visual-dna"`, set `source` to `{ "kind": "provided-visual-dna" }`, and omit unsupported image facts. Confidence is a number from 0 through 1 when evidence supports it, otherwise `null`. The two policy booleans are always `false`.
 
 ## style.spec.json
 

@@ -2,9 +2,41 @@
 
 [中文](README.md) | English
 
-Visual Builder is a Codex skill that converts a user-supplied designed image or an existing `visual_dna_system` document into a debranded, platform-specific illustration style candidate bundle for review and installation by `post-illustration-images`.
+Visual Builder is a Codex skill that converts a user-supplied designed image or an existing `visual_dna_system` document into a debranded, platform-specific illustration style candidate bundle. The bundle can be reviewed and approved independently, or optionally registered and used for production by `post-illustration-images`.
 
 It extracts reusable visual grammar instead of reproducing the source pixel for pixel. Brands, subject matter, copy, proper nouns, and identity-bearing elements from the source are excluded from the resulting template.
+
+## Installation And Recommended Companions
+
+Install Visual Builder with Codex's built-in `skill-installer`:
+
+```bash
+python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
+  --repo BruceL017/visual-builder \
+  --path . \
+  --name visual-builder
+```
+
+Visual Builder works standalone. Two optional companion skills provide the full pipeline:
+
+| Position | Skill | Role | Behavior when missing |
+| --- | --- | --- | --- |
+| Upstream | `visual-dna-system` | Extracts a more complete Visual DNA from designed images | Uses Visual Builder's compact built-in extraction path |
+| Current | `visual-builder` | Compiles, calibrates, validates, and approves template candidates | Completes a portable `approved` candidate bundle independently |
+| Downstream | [`post-illustration-images`](https://github.com/BruceL017/post-illustration-images) | Registers approved styles and uses them for production illustrations | Preserves the approved bundle without registration or production |
+
+`visual-dna-system` does not currently have a public installation URL. If you have a trusted repository URL or path, install from that source and name the destination `visual-dna-system`; do not use an unverified repository with a matching name.
+
+Install the public downstream skill:
+
+```bash
+python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
+  --repo BruceL017/post-illustration-images \
+  --path . \
+  --name post-illustration-images
+```
+
+On the first Visual Builder invocation in each task, it checks both optional skills. It recommends only missing companions, never installs automatically, never pauses the task, and does not repeat the notice within the same task.
 
 ## Core Capabilities
 
@@ -36,7 +68,7 @@ These dimensions define layout coordinates. Calibration images that pass the rat
 5. Generate independent concept, process, and checklist calibration images.
 6. Run machine QA, select the best reference, and build a contact sheet.
 7. Validate the complete bundle and stop for human review.
-8. After explicit approval, mark the candidate and invoke the target skill installer.
+8. After explicit approval, deliver a portable bundle; install it only when requested and the downstream skill is available.
 
 ## Candidate Bundle
 

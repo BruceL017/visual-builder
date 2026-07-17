@@ -1,11 +1,27 @@
 ---
 name: visual-builder
-description: Convert a user-supplied designed image or an existing visual_dna_system document into a debranded, platform-specific illustration-style candidate bundle for post-illustration-images. Use when the user asks to extract a reusable visual template, turn a poster/knowledge card/infographic/illustration/designed interface into a style, compile Visual DNA into a post illustration template, calibrate a new style across multiple content structures, or approve such a candidate for local installation. Do not use for ordinary image editing, one-off image generation, natural-photo presets, logo extraction, pixel-identical cloning, or installing an unreviewed style.
+description: Convert a user-supplied designed image or an existing visual_dna_system document into a debranded, platform-specific illustration-style candidate bundle. Use when the user asks to extract a reusable visual template, turn a poster/knowledge card/infographic/illustration/designed interface into a style, compile Visual DNA into a post illustration template, calibrate a new style across multiple content structures, or approve such a candidate for local installation. Works standalone, with optional visual-dna-system upstream extraction and post-illustration-images downstream installation. Do not use for ordinary image editing, one-off image generation, natural-photo presets, logo extraction, pixel-identical cloning, or installing an unreviewed style.
 ---
 
 # Visual Builder
 
 Build a reusable style candidate from visual evidence without carrying over its identity or subject. Treat the reference as evidence for visual grammar, never as a generation reference or a source to imitate literally.
+
+## Companion Preflight
+
+Run this preflight once at the start of each task, before validating inputs. Set a task-local `CompanionContext` and never write it into the candidate bundle.
+
+1. Mark `visual-dna-system` or `post-illustration-images` available when the current runtime lists that skill.
+2. For any unresolved skill, check for a readable `SKILL.md` at `${CODEX_HOME:-$HOME/.codex}/skills/<skill-name>/SKILL.md`. Do not search unrelated directories.
+3. When both skills are available, continue silently.
+4. When one or both skills are missing, issue one concise, non-blocking recommendation that lists all and only the missing skills, calls them optional, explains the applicable fallbacks below, and states that the current task will continue. Do not ask the user to choose, do not install automatically, and do not repeat the recommendation in the same task.
+
+Treat this as installation onboarding, independent of the current `input_mode` or installation intent. Preflight availability means only that a skill was discovered; validate the downstream scripts separately if installation is later requested. A later `target-skill-unavailable` result is an installation blocker, not a repeated onboarding recommendation.
+
+Use the companions only for these boundaries:
+
+- `visual-dna-system`: preferred upstream extractor for image input. When missing, use the built-in extraction path in Section 1.
+- `post-illustration-images`: optional downstream registry and production skill. When missing, complete and approve a portable candidate bundle but do not describe it as installed or production-ready.
 
 ## Inputs
 
@@ -55,12 +71,13 @@ qa.json
 
 Use statuses `draft`, `ready_for_review`, `approved`, `installed`, or `blocked`. Read [candidate-contract.md](references/candidate-contract.md) before creating or changing a bundle.
 
-Define **candidate done** as: the complete bundle validates, all three calibration images pass QA, and status is `ready_for_review`. Define **approval done** as: a human explicitly reviewed the contact sheet/images, `mark-approved.mjs` succeeds, status is `approved`, and `template_ready` is `true`. Define **installation done** as: the target skill installer succeeds, its registry and generated index agree, and status is `installed`. Never describe a draft or merely generated bundle as done.
+Define **candidate done** as: the complete bundle validates, all three calibration images pass QA, and status is `ready_for_review`. Define **approval done** as: a human explicitly reviewed the contact sheet/images, `mark-approved.mjs` succeeds, status is `approved`, and `template_ready` is `true`. An approved bundle is a portable standalone deliverable even when no downstream skill is available. Define **installation done** as: the target skill installer succeeds, its registry and generated index agree, and status is `installed`. Never describe an approved but unregistered bundle as installed or production-ready, and never describe a draft or merely generated bundle as done.
 
 ## Guarded Procedure
 
 CREATE A TODO LIST FOR THE TASKS BELOW and update it while running. Stop at the first failed gate; record the failure instead of improvising around it.
 
+- [ ] Run the companion preflight and show any one-time optional recommendation.
 - [ ] Confirm named inputs and explicit `target_platform`.
 - [ ] Extract or validate Visual DNA.
 - [ ] Pass the design-signal and source-integrity gates.
@@ -70,17 +87,19 @@ CREATE A TODO LIST FOR THE TASKS BELOW and update it while running. Stop at the 
 - [ ] Run machine QA and select the best unbranded reference.
 - [ ] Validate the candidate bundle.
 - [ ] Obtain explicit human approval.
-- [ ] Mark approved, then invoke the target skill installer.
-- [ ] Revalidate the installed registry and report final paths.
+- [ ] Mark approved and deliver the portable bundle.
+- [ ] If installation was requested, invoke the target skill installer and revalidate its registry.
 
 ### 1. Acquire Visual DNA
 
 For `image` mode:
 
 1. Verify the source is a designed artifact, readable, and at least 512 px on its shortest edge.
-2. Use `visual-dna-system` to extract its complete five-part output. Preserve that output as `visual-dna.md` and `visual-dna.json`.
-3. Hash the original with SHA-256 and record only hash, pixel dimensions, extraction mode, and confidence in `provenance.json`.
-4. Do not copy, embed, upload, or retain the original image in the candidate or target skill.
+2. When `CompanionContext` marks `visual-dna-system` available, use it to extract its complete five-part output. Preserve the normalized design system as `visual-dna.md` and `visual-dna.json`.
+3. Otherwise extract a compact Visual DNA directly from the image. In `visual-dna.md`, record evidence and confidence, design essence, color roles, typography hierarchy, layout and composition, shape components, material and texture, illustration or icon language, transferable principles, non-transferable identity, and originality rules. In `visual-dna.json`, write `schema_version: 1`, a non-empty `visual_dna_system` with the same evidenced concepts, and the exact `design_signal` object required by [candidate-contract.md](references/candidate-contract.md).
+4. In either path, assess all six design signals plus source scope and identity dominance. Absence of a signal is `false`, not missing evidence. Do not invent unsupported visual facts. If the readable image does not support a complete assessment or fails the signal gate, follow the existing blocked or extraction-failure path instead of weakening the contract.
+5. Hash the original with SHA-256 and write the complete image-mode `provenance.json` from [candidate-contract.md](references/candidate-contract.md), including schema version, source hash and dimensions, confidence, `original_retained: false`, and `used_as_generation_reference: false`.
+6. Run the existing image-mode originality review with the source pixels visible to that review. Do not copy, embed, upload, or retain the original image in the candidate or target skill.
 
 For `visual-dna` mode:
 
@@ -160,7 +179,7 @@ node scripts/validate-candidate.mjs /absolute/path/to/candidate
 
 Set status to `ready_for_review` only after validation succeeds and `design_signal.evidence_complete` is true. Present all three images plus the selected reference to the user. Do not infer approval from silence, previous approval, or a request to “finish.”
 
-### 6. Approve And Install
+### 6. Approve And Optionally Install
 
 After the human explicitly confirms the candidate, run:
 
@@ -170,11 +189,13 @@ node scripts/mark-approved.mjs /absolute/path/to/candidate \
   --confirmed-by "<reviewer>"
 ```
 
-Resolve the `post-illustration-images` root in this order:
+Approval is standalone. After the command succeeds, keep status `approved` and deliver the portable candidate bundle. If the user did not request downstream installation, report that it is approved but not registered and stop.
+
+Only resolve `post-illustration-images` when the user requests installation. Resolve its root in this order:
 
 1. Use a user-provided absolute path only when it is readable and contains `SKILL.md`, `scripts/validate-style-bundle.mjs`, and `scripts/install-style-bundle.mjs`.
 2. Otherwise use `${CODEX_HOME:-$HOME/.codex}/skills/post-illustration-images` and require the same files.
-3. If neither resolves, stop with blocker `target-skill-unavailable`. Do not search for a similarly named directory and do not repair links implicitly.
+3. If neither resolves, report installation blocker `target-skill-unavailable`, keep the bundle unchanged at `approved`, and deliver its path. Do not search for a similarly named directory, repair links implicitly, or downgrade the approved bundle.
 
 Run the target validator first, then its installer with the exact same approved bundle and resolved root. Do not manually copy files or edit its registry:
 

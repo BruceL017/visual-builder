@@ -2,9 +2,41 @@
 
 中文 | [English](README_EN.md)
 
-Visual Builder 是一个面向 Codex 的视觉模板构建技能。它将用户提供的设计图，或已有的 `visual_dna_system` 文档，转换为去品牌化、适配指定内容平台的插画风格候选包，供 `post-illustration-images` 审核和安装。
+Visual Builder 是一个面向 Codex 的视觉模板构建技能。它将用户提供的设计图，或已有的 `visual_dna_system` 文档，转换为去品牌化、适配指定内容平台的插画风格候选包。候选包可以独立完成审核与批准，也可以选择交给 `post-illustration-images` 注册和用于生产配图。
 
 它提取的是可复用的视觉语法，而不是对原图进行像素级复刻。源图中的品牌、主题、文案、专有名词和身份元素不会进入最终模板。
+
+## 安装与推荐搭配
+
+使用 Codex 内置的 `skill-installer` 安装 Visual Builder：
+
+```bash
+python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
+  --repo BruceL017/visual-builder \
+  --path . \
+  --name visual-builder
+```
+
+Visual Builder 可以单独运行，同时推荐搭配两个可选 skill：
+
+| 位置 | Skill | 作用 | 缺失时的行为 |
+| --- | --- | --- | --- |
+| 上游 | `visual-dna-system` | 从设计图提取更完整的 Visual DNA | 使用 Visual Builder 内置的精简提取流程 |
+| 当前 | `visual-builder` | 编译、校准、验证并批准候选模板 | 独立完成到可移植的 `approved` 候选包 |
+| 下游 | [`post-illustration-images`](https://github.com/BruceL017/post-illustration-images) | 注册批准的样式并用于生产配图 | 保留批准候选包，但不注册或生产配图 |
+
+`visual-dna-system` 目前没有公开安装地址；如果你的环境已有可信的仓库 URL 或路径，可以从该来源安装，并将目标名称设为 `visual-dna-system`。不要使用未经确认的同名仓库。
+
+安装公开的下游 skill：
+
+```bash
+python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
+  --repo BruceL017/post-illustration-images \
+  --path . \
+  --name post-illustration-images
+```
+
+每个任务首次调用 Visual Builder 时，它会检测这两个可选 skill。只有缺失项会被推荐；提示不会自动安装、不会暂停任务，也不会在同一任务内重复。
 
 ## 核心能力
 
@@ -36,7 +68,7 @@ Visual Builder 是一个面向 Codex 的视觉模板构建技能。它将用户�
 5. 独立生成概念、流程和清单三张校准图。
 6. 执行机器 QA，选择最佳参考图并构建联系表。
 7. 验证完整候选包，等待人工审核。
-8. 人工明确批准后，标记候选并调用目标技能安装器。
+8. 人工明确批准后交付可移植候选包；只有用户要求并且下游可用时才执行安装。
 
 ## 候选包结构
 
