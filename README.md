@@ -132,6 +132,14 @@ ${CODEX_HOME:-$HOME/.codex}/visual-builder-candidates/<style_id>/
 node --test tests/*.test.mjs
 ```
 
+使用本地 `post-illustration-images` 仓库执行跨仓 v2 临时安装验证：
+
+```bash
+POST_ILLUSTRATION_SKILL_ROOT=/path/to/post-illustration-images node --test tests/validate-candidate.test.mjs
+```
+
+未设置 `POST_ILLUSTRATION_SKILL_ROOT` 时，对应的跨仓集成测试会跳过，其余测试照常运行。
+
 检查三个本地 skill：
 
 ```bash
@@ -155,7 +163,7 @@ node scripts/mark-approved.mjs /absolute/path/to/candidate \
 ## 关键约束
 
 - 不把源图交给图片生成后端。
-- 不复制品牌、Logo、水印、角色、原文案或独特身份元素。
+- 不复制源品牌、Logo、水印、角色、原文案或独特身份元素；原创性 QA 同样拒绝任何无关或伪造的第三方 Logo、类 Logo 标记、水印或签名。
 - 不把自然照片、纯 Logo 或缺乏设计系统的内容误判为可复用模板。
 - 不从源图比例推断目标平台，目标平台必须由用户明确指定。
 - 不在缺少三张校准图、机器 QA 或人工审核时安装模板。

@@ -132,6 +132,14 @@ Run the test suite:
 node --test tests/*.test.mjs
 ```
 
+Run the cross-repository v2 temporary-install check against a local `post-illustration-images` repository:
+
+```bash
+POST_ILLUSTRATION_SKILL_ROOT=/path/to/post-illustration-images node --test tests/validate-candidate.test.mjs
+```
+
+When `POST_ILLUSTRATION_SKILL_ROOT` is unset, the corresponding cross-repository integration test is skipped and the remaining tests run normally.
+
 Check the three local skills:
 
 ```bash
@@ -155,7 +163,7 @@ node scripts/mark-approved.mjs /absolute/path/to/candidate \
 ## Guardrails
 
 - Never send the source image to the image-generation backend.
-- Never copy brands, logos, watermarks, characters, source copy, or unique identity elements.
+- Never copy source brands, logos, watermarks, characters, source copy, or unique identity elements; originality QA also rejects any unrelated or fabricated third-party logo, logo-like mark, watermark, or signature.
 - Never treat a natural photo, standalone logo, or content without a reusable design system as a valid template source.
 - Never infer the target platform from the source aspect ratio; the user must choose it explicitly.
 - Never install a candidate without all three calibration images, machine QA, and human review.
