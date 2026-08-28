@@ -1,4 +1,6 @@
 interface:
   display_name: "Visual Builder"
-  short_description: "Turn designed images into reusable debranded visual templates"
-  default_prompt: "Use $visual-builder to turn my designed image into a debranded, platform-specific illustration template candidate."
+  short_description: "Extract, calibrate, approve, and register visual styles"
+  default_prompt: "Use $visual-builder to turn my designed image into a debranded style for my chosen platform, generate three calibration images, stop for my approval, then register the approved style locally."
+policy:
+  allow_implicit_invocation: false

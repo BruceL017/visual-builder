@@ -2,11 +2,11 @@
 
 [中文](README.md) | English
 
-Visual Builder is a Codex skill that converts a user-supplied designed image or an existing `visual_dna_system` document into a debranded, platform-specific illustration style candidate bundle. The bundle can be reviewed and approved independently, or optionally registered and used for production by `post-illustration-images`.
+Visual Builder is a Codex orchestration skill for onboarding reusable visual styles. It converts a user-supplied designed image or an existing `visual_dna_system` document into a debranded, platform-specific illustration style candidate, calibrates it across three structures, and registers it with local `post-illustration-images` after explicit human approval.
 
 It extracts reusable visual grammar instead of reproducing the source pixel for pixel. Brands, subject matter, copy, proper nouns, and identity-bearing elements from the source are excluded from the resulting template.
 
-## Installation And Recommended Companions
+## Installation And Required Skills
 
 Install Visual Builder with Codex's built-in `skill-installer`:
 
@@ -17,17 +17,26 @@ python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/inst
   --name visual-builder
 ```
 
-Visual Builder works standalone. Two optional companion skills provide the full pipeline:
+Contact-sheet rendering also requires `rsvg-convert` from `librsvg` on the system `PATH`. On macOS with Homebrew, run `brew install librsvg`. Preflight verifies the executable before creating a candidate.
 
-| Position | Skill | Role | Behavior when missing |
-| --- | --- | --- | --- |
-| Upstream | `visual-dna-system` | Extracts a more complete Visual DNA from designed images | Uses Visual Builder's compact built-in extraction path |
-| Current | `visual-builder` | Compiles, calibrates, validates, and approves template candidates | Completes a portable `approved` candidate bundle independently |
-| Downstream | [`post-illustration-images`](https://github.com/BruceL017/post-illustration-images) | Registers approved styles and uses them for production illustrations | Preserves the approved bundle without registration or production |
+The complete pipeline requires all three local skills:
 
-`visual-dna-system` does not currently have a public installation URL. If you have a trusted repository URL or path, install from that source and name the destination `visual-dna-system`; do not use an unverified repository with a matching name.
+| Position | Skill | Role |
+| --- | --- | --- |
+| Upstream | [`visual-dna-system`](https://github.com/BruceL017/visual-dna-skills) | Extracts complete, debranded Visual DNA from designed images |
+| Current | `visual-builder` | Compiles, calibrates, validates, and manages human approval |
+| Downstream | [`post-illustration-images`](https://github.com/BruceL017/post-illustration-images) | Registers approved styles and uses them for production illustrations |
 
-Install the public downstream skill:
+Install the upstream extraction skill:
+
+```bash
+python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
+  --repo BruceL017/visual-dna-skills \
+  --path skills/visual-dna-system \
+  --name visual-dna-system
+```
+
+Install the downstream production skill:
 
 ```bash
 python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
@@ -36,7 +45,7 @@ python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/inst
   --name post-illustration-images
 ```
 
-On the first Visual Builder invocation in each task, it checks both optional skills. It recommends only missing companions, never installs automatically, never pauses the task, and does not repeat the notice within the same task.
+Each explicit `$visual-builder` invocation checks all three skills, the downstream validator and installer, and `rsvg-convert`. If anything is missing, the workflow stops before candidate creation. Missing skills report their official sources and request installation permission; a missing runtime reports its system package. After a passing recheck, the workflow continues in the same task. There is no built-in fallback.
 
 ## Core Capabilities
 
@@ -61,19 +70,20 @@ These dimensions define layout coordinates. Calibration images that pass the rat
 
 ## Workflow
 
-1. Confirm the input mode, source, target platform, and output directory.
-2. Extract or validate Visual DNA and pass the design-signal and source-integrity gates.
-3. Suggest debranded candidate metadata such as name, purpose, and aliases.
-4. Compile the style contract, platform geometry, prompts, and candidate metadata.
-5. Generate independent concept, process, and checklist calibration images.
-6. Run machine QA, select the best reference, and build a contact sheet.
-7. Validate the complete bundle and stop for human review.
-8. After explicit approval, deliver a portable bundle; install it only when requested and the downstream skill is available.
+1. Check all three local skills and the contact-sheet runtime; with permission, install missing dependencies and recheck.
+2. Confirm the input mode, source, and explicit target platform.
+3. Use `visual-dna-system` to extract or validate Visual DNA and pass the design-signal and source-integrity gates.
+4. Suggest debranded candidate metadata such as name, purpose, and aliases.
+5. Compile the style contract, platform geometry, prompts, and candidate metadata.
+6. Generate independent concept, process, and checklist calibration images.
+7. Run machine QA, select the best reference, and build a contact sheet.
+8. Validate the complete bundle and stop for human review.
+9. Explicit approval immediately marks the candidate approved, validates it downstream, and registers it; success changes the status to `installed`.
 
 ## Candidate Bundle
 
 ```text
-visual-builder-output/<style_id>/
+${CODEX_HOME:-$HOME/.codex}/visual-builder-candidates/<style_id>/
 ├── candidate.json
 ├── visual-dna.md
 ├── visual-dna.json
@@ -95,13 +105,15 @@ visual-builder-output/<style_id>/
 
 Candidate states progress through `draft`, `ready_for_review`, `approved`, and `installed`; failed hard gates use `blocked`. Generated does not mean reviewed, and machine validation does not replace explicit human approval.
 
+Human approval also authorizes downstream validation and installation, so there is no second registration confirmation. A failed installation leaves the complete candidate in the fixed library with status `approved`; a successful installation changes it to `installed`. The downstream skill stores only the style Markdown, spec, provenance, selected reference, registry entry, and generated index, not the Visual DNA, prompts, QA, or full calibration set.
+
 ## Usage
 
-Load this repository as a Codex skill and invoke it with explicit inputs. For example:
+This skill runs only when explicitly invoked as `$visual-builder`. For example:
 
 ```text
-Use $visual-builder to turn this 1080 x 1440 knowledge card into a Xiaohongshu illustration template candidate.
-Remove the original branding and copy, preserve the paper texture, editorial hierarchy, and whitespace rhythm, then stop for review after generating the calibration images.
+Use $visual-builder to turn this 1080 x 1440 knowledge card into a Xiaohongshu illustration style.
+Remove the original branding and copy, preserve the paper texture, editorial hierarchy, and whitespace rhythm, stop after the three calibration images, then register the style locally after I approve it.
 ```
 
 Required inputs:
@@ -109,14 +121,21 @@ Required inputs:
 - `input_mode`: `image` or `visual-dna`
 - `source`: an image path or JSON/Markdown containing `visual_dna_system`
 - `target_platform`: `wechat`, `xhs`, `zhihu`, `weibo`, or `toutiao`
-- `output_root`: the directory in which to create the candidate bundle
+
+New candidates always use `${CODEX_HOME:-$HOME/.codex}/visual-builder-candidates/<style_id>`. To resume across tasks, provide the `style_id`; an absolute path can resume a legacy candidate. Visual Builder does not search other directories or overwrite an existing candidate.
 
 ## Local Validation
 
 Run the test suite:
 
 ```bash
-node --test tests/validate-candidate.test.mjs
+node --test tests/*.test.mjs
+```
+
+Check the three local skills:
+
+```bash
+node scripts/check-companions.mjs --json
 ```
 
 Validate a candidate bundle:
