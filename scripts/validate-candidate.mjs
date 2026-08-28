@@ -12,36 +12,26 @@ export const PLATFORMS = Object.freeze({
     specPlatform: "wechat",
     canvas: { width: 1600, height: 1200, ratio: "4:3", orientation: "horizontal" },
     safeArea: { x: 80, y: 80, width: 1440, height: 1040 },
-    reservedArea: { x: 1320, y: 44, width: 240, height: 100 },
-    brandSlot: { x: 1350, y: 64, width: 170, height: 46 },
   },
   xhs: {
     specPlatform: "xiaohongshu",
     canvas: { width: 1080, height: 1440, ratio: "3:4", orientation: "vertical" },
     safeArea: { x: 80, y: 96, width: 920, height: 1248 },
-    reservedArea: { x: 842, y: 44, width: 208, height: 90 },
-    brandSlot: { x: 872, y: 64, width: 148, height: 40 },
   },
   zhihu: {
     specPlatform: "zhihu",
     canvas: { width: 1600, height: 900, ratio: "16:9", orientation: "horizontal" },
     safeArea: { x: 80, y: 70, width: 1440, height: 760 },
-    reservedArea: { x: 1320, y: 44, width: 240, height: 100 },
-    brandSlot: { x: 1350, y: 64, width: 170, height: 46 },
   },
   weibo: {
     specPlatform: "weibo",
     canvas: { width: 1080, height: 1440, ratio: "3:4", orientation: "vertical" },
     safeArea: { x: 80, y: 96, width: 920, height: 1248 },
-    reservedArea: { x: 842, y: 44, width: 208, height: 90 },
-    brandSlot: { x: 872, y: 64, width: 148, height: 40 },
   },
   toutiao: {
     specPlatform: "toutiao",
     canvas: { width: 1600, height: 900, ratio: "16:9", orientation: "horizontal" },
     safeArea: { x: 80, y: 70, width: 1440, height: 760 },
-    reservedArea: { x: 1320, y: 44, width: 240, height: 100 },
-    brandSlot: { x: 1350, y: 64, width: 170, height: 46 },
     minShortEdge: 900,
   },
 });
@@ -62,7 +52,6 @@ export const HARD_GATE_KEYS = Object.freeze([
   "safe_area",
   "single_core_meaning",
   "identity_leakage",
-  "brand_free",
 ]);
 export const SIGNAL_KEYS = Object.freeze([
   "color_roles",
@@ -91,7 +80,7 @@ const STYLE_SECTION_HEADINGS = Object.freeze([
   "Components And Illustration",
   "Texture And Material",
   "Platform Geometry",
-  "Debranding And Prohibitions",
+  "Originality And Prohibitions",
   "Calibration Guidance",
 ]);
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".avif", ".heic", ".tif", ".tiff"]);
@@ -440,7 +429,7 @@ function validateCandidateManifest(candidate, errors, requireInstallable) {
     issue(errors, "candidate.json", "must contain a JSON object");
     return null;
   }
-  if (candidate.schemaVersion !== 1) issue(errors, "candidate.schemaVersion", "must equal 1");
+  if (candidate.schemaVersion !== 2) issue(errors, "candidate.schemaVersion", "must equal 2");
   if (!STATUSES.has(candidate.status)) issue(errors, "candidate.status", "is not an allowed status");
   if (typeof candidate.template_ready !== "boolean") issue(errors, "candidate.template_ready", "must be a boolean");
 
@@ -473,9 +462,8 @@ function validateCandidateManifest(candidate, errors, requireInstallable) {
         seen.add(normalized);
       }
     }
-    const policy = style.brandPolicy;
-    if (!isObject(policy) || typeof policy.defaultEnabled !== "boolean" || policy.userOverrideAllowed !== true) {
-      issue(errors, "candidate.style.brandPolicy", "must contain boolean defaultEnabled and userOverrideAllowed: true");
+    if (Object.hasOwn(style, "brandPolicy")) {
+      issue(errors, "candidate.style.brandPolicy", "is not allowed in schemaVersion 2", "legacy-field");
     }
   }
 
@@ -600,20 +588,21 @@ function validateStyleSpec(spec, style, errors) {
 
   const canvasRect = { x: 0, y: 0, width: baseline.canvas.width, height: baseline.canvas.height };
   const safe = spec.layout?.contentSafeArea;
-  const reserved = spec.layout?.brandReservedArea;
   if (!sameObject(safe, baseline.safeArea) || !rectInside(safe, canvasRect)) issue(errors, "style.spec.layout.contentSafeArea", "must match the platform baseline inside the canvas");
-  if (!sameObject(reserved, baseline.reservedArea) || !rectInside(reserved, canvasRect)) issue(errors, "style.spec.layout.brandReservedArea", "must match the platform baseline inside the canvas");
-
-  const slot = spec.fixedComponents?.brandSlot;
-  if (!sameObject(slot, baseline.brandSlot) || slot?.enabled !== true || slot?.anchor !== "top-right" || slot?.assetFit !== "contain") {
-    issue(errors, "style.spec.fixedComponents.brandSlot", "must match the enabled platform baseline brand slot");
-  } else if (!rectInside(slot, reserved)) {
-    issue(errors, "style.spec.fixedComponents.brandSlot", "must remain inside layout.brandReservedArea");
+  if (Object.hasOwn(spec, "brandPolicy")) {
+    issue(errors, "style.spec.brandPolicy", "is not allowed in schemaVersion 2", "legacy-field");
   }
-  if (!isObject(spec.brandPolicy)
-    || spec.brandPolicy.defaultEnabled !== style.brandPolicy?.defaultEnabled
-    || spec.brandPolicy.userOverrideAllowed !== true) {
-    issue(errors, "style.spec.brandPolicy", "must equal candidate.style.brandPolicy");
+  if (isObject(spec.layout) && Object.hasOwn(spec.layout, "brandReservedArea")) {
+    issue(errors, "style.spec.layout.brandReservedArea", "is not allowed in schemaVersion 2", "legacy-field");
+  }
+  if (isObject(spec.fixedComponents) && Object.hasOwn(spec.fixedComponents, "brandSlot")) {
+    issue(errors, "style.spec.fixedComponents.brandSlot", "is not allowed in schemaVersion 2", "legacy-field");
+  }
+  if (isObject(spec.generationConstraints) && Object.hasOwn(spec.generationConstraints, "forbidModelDrawnBrand")) {
+    issue(errors, "style.spec.generationConstraints.forbidModelDrawnBrand", "is not allowed in schemaVersion 2", "legacy-field");
+  }
+  if (isObject(spec.generationConstraints) && Object.hasOwn(spec.generationConstraints, "keepBrandReservedAreaClear")) {
+    issue(errors, "style.spec.generationConstraints.keepBrandReservedAreaClear", "is not allowed in schemaVersion 2", "legacy-field");
   }
   const handling = spec.inputHandling;
   if (!isObject(handling)
@@ -631,14 +620,14 @@ function validateStyleSpec(spec, style, errors) {
   if (baseline.minShortEdge && handling?.minShortEdge !== baseline.minShortEdge) {
     issue(errors, "style.spec.inputHandling.minShortEdge", `must equal ${baseline.minShortEdge}`);
   }
-  if (spec.generationConstraints?.forbidModelDrawnBrand !== true || spec.generationConstraints?.keepBrandReservedAreaClear !== true) {
-    issue(errors, "style.spec.generationConstraints", "must forbid model-drawn brand and keep the brand area clear");
-  }
   const reference = spec.styleReference;
   if (reference?.image !== `assets/style-references/${style.id}.png`) issue(errors, "style.spec.styleReference.image", "must target the installed style reference path");
   if (reference?.isGenerationInput !== false) issue(errors, "style.spec.styleReference.isGenerationInput", "must be false");
-  if (!isNonEmptyString(reference?.contentPolicy) || !/semantic|identity|brand/i.test(reference.contentPolicy)) {
-    issue(errors, "style.spec.styleReference.contentPolicy", "must explicitly exclude semantic or identity copying");
+  const contentPolicy = reference?.contentPolicy;
+  if (!isNonEmptyString(contentPolicy)
+    || !/\bsemantic\s+content\b/i.test(contentPolicy)
+    || !/\bidentity\b/i.test(contentPolicy)) {
+    issue(errors, "style.spec.styleReference.contentPolicy", "must exclude both semantic content and identity copying");
   }
 }
 
@@ -665,8 +654,12 @@ function validateHardGates(gates, field, errors) {
     issue(errors, field, "must be an object");
     return;
   }
+  if (Object.hasOwn(gates, "brand_free")) {
+    issue(errors, `${field}.brand_free`, "is not allowed in schemaVersion 2", "legacy-field");
+  }
   for (const key of HARD_GATE_KEYS) {
-    if (gates[key] !== true) issue(errors, `${field}.${key}`, "must be true (the gate must pass)", "qa-hard-gate");
+    const scope = key === "identity_leakage" ? "; covers logo, watermark, and signature leakage" : "";
+    if (gates[key] !== true) issue(errors, `${field}.${key}`, `must be true (the gate must pass${scope})`, "qa-hard-gate");
   }
 }
 
@@ -794,7 +787,7 @@ async function validateQa(root, qa, style, provenance, errors) {
   const selectedImage = byId.get(selected.image_id);
   if (selected.source_image !== `calibration/${selected.image_id}.png`) issue(errors, "qa.selected_reference.source_image", "must identify the selected calibration PNG");
   if (selected.path !== FILE_MANIFEST.styleReference) issue(errors, "qa.selected_reference.path", `must equal ${FILE_MANIFEST.styleReference}`);
-  if (selected.unbranded !== true) issue(errors, "qa.selected_reference.unbranded", "must be true");
+  if (Object.hasOwn(selected, "unbranded")) issue(errors, "qa.selected_reference.unbranded", "is not allowed in schemaVersion 2", "legacy-field");
   if (totals.length === 3) {
     const ranked = CALIBRATION_IDS
       .map((id, order) => ({ id, order, score: byId.get(id)?.total_score }))

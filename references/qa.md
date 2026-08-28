@@ -16,12 +16,12 @@ Review visual style only. Read <candidate>/style.md and <candidate>/style.spec.j
 Use this originality-reviewer task verbatim after replacing paths:
 
 ```text
-Review originality only. In image mode inspect <source-image-path> and <candidate>/calibration/concept.png, process.png, and checklist.png; never copy or return the source path. In DNA-only mode inspect <candidate>/visual-dna.json, provenance.json, and all three PNGs. Never read style.md, style.spec.json, style scores, or the style review. Evaluate source identity, copy, topic, asset, brand, and exact-layout leakage. Do not edit files. Return exactly:
-{"review":{"reviewer":"<reviewer>","run_id":"<unique-run-id>","backend":"<backend>","model":"<model>","reviewed_at":"<ISO-8601>","input_scope":"source-and-all-calibration-images|visual-dna-and-all-calibration-images","source_mode":"image|visual-dna","source_pixels_visible":true,"style_scores_visible":false,"limitation":null,"conclusion":"pass|fail"},"image_gates":[{"id":"concept","identity_leakage":true,"brand_free":true},{"id":"process","identity_leakage":true,"brand_free":true},{"id":"checklist","identity_leakage":true,"brand_free":true}]}
+Review originality only. In image mode inspect <source-image-path> and <candidate>/calibration/concept.png, process.png, and checklist.png; never copy or return the source path. In DNA-only mode inspect <candidate>/visual-dna.json, provenance.json, and all three PNGs. Never read style.md, style.spec.json, style scores, or the style review. Evaluate source identity, copy, topic, asset, brand, and exact-layout leakage, plus any source, third-party, or fabricated logo, logo-like mark, watermark, or signature. Do not edit files. Return exactly:
+{"review":{"reviewer":"<reviewer>","run_id":"<unique-run-id>","backend":"<backend>","model":"<model>","reviewed_at":"<ISO-8601>","input_scope":"source-and-all-calibration-images|visual-dna-and-all-calibration-images","source_mode":"image|visual-dna","source_pixels_visible":true,"style_scores_visible":false,"limitation":null,"conclusion":"pass|fail"},"image_gates":[{"id":"concept","identity_leakage":true},{"id":"process","identity_leakage":true},{"id":"checklist","identity_leakage":true}]}
 For DNA-only mode set `source_pixels_visible` to false and `limitation` to `source-pixels-unavailable`.
 ```
 
-The primary agent merges both outputs into `qa.json` without changing scores or conclusions. All per-image gates are the AND of the four style gates and two originality gates; both review conclusions must pass. Record the two `review` objects using the schema in [candidate-contract.md](candidate-contract.md).
+The primary agent merges both outputs into `qa.json` without changing scores or conclusions. All per-image gates are the AND of the four style gates and the originality identity-leakage gate; both review conclusions must pass. Record the two `review` objects using the schema in [candidate-contract.md](candidate-contract.md).
 
 Score each dimension from 0 to 100:
 
@@ -45,10 +45,9 @@ Every gate is a boolean pass flag and must be `true` for every image:
 
 - `dimensions`: PNG IHDR equals generation metadata, preserves native output, and meets any platform minimum short edge.
 - `aspect_ratio`: target ratio is exact; no crop, padding, rotation, or stretch workaround.
-- `safe_area`: meaningful content fits inside `layout.contentSafeArea`; the reserved brand area stays quiet only when `brandPolicy.defaultEnabled` is true and is inactive otherwise.
+- `safe_area`: meaningful content fits inside `layout.contentSafeArea`.
 - `single_core_meaning`: image communicates one assigned brief rather than unrelated ideas.
-- `identity_leakage`: no source logo, name, text, mascot, unique icon, topic, or recognizably exact arrangement appears. `true` means the leakage check passed.
-- `brand_free`: no production brand, fake brand, logo-like mark, watermark, or model signature appears.
+- `identity_leakage`: no source logo, name, text, mascot, unique icon, topic, or recognizably exact arrangement appears, and no source, third-party, or fabricated logo, logo-like mark, watermark, or signature appears. `true` means the leakage check passed.
 
 Top-level `hard_gates` contains the logical AND for each gate across all calibration images. A failed gate cannot be offset by numeric scores.
 
@@ -60,8 +59,7 @@ Select only after all three images pass. Choose the highest `total_score`; resol
 {
   "image_id": "concept",
   "source_image": "calibration/concept.png",
-  "path": "calibration/style-reference.png",
-  "unbranded": true
+  "path": "calibration/style-reference.png"
 }
 ```
 
@@ -71,7 +69,7 @@ Build `calibration/contact-sheet.png` after reference selection, showing the thr
 
 ## Human Approval
 
-Show the three calibration images together at readable size and identify the selected reference. Ask the human to confirm whether the style is recognizable, debranded, and adaptable across all structures. An explicit yes for this candidate is required.
+Show the three calibration images together at readable size and identify the selected reference. Ask the human to confirm whether the style is recognizable and adaptable across all structures, with no copied source identity or source, third-party, or fabricated logo, watermark, or signature. An explicit yes for this candidate is required.
 
 Before approval, `candidate.humanApproval` is:
 
@@ -90,7 +88,7 @@ Before approval, `candidate.humanApproval` is:
 | Failure | Return to |
 | --- | --- |
 | Wrong dimensions or ratio | regeneration with corrected platform request |
-| Identity or brand leakage | compiler debranding and affected prompts |
+| Identity leakage, including a logo, watermark, or signature | compiler debranding and affected prompts |
 | One weak structure | that structure's prompt and image only |
 | All structures share a style defect | `style.md`/`style.spec.json`, then all prompts |
 | Fixed layout repeated across structures | composition grammar and all prompts |

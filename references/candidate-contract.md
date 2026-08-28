@@ -46,7 +46,7 @@ Use this exact public shape. Do not introduce a second candidate manifest.
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "status": "ready_for_review",
   "template_ready": false,
   "style": {
@@ -55,11 +55,7 @@ Use this exact public shape. Do not introduce a second candidate manifest.
     "platform": "xhs",
     "defaultUse": "structured explainers and practical checklists",
     "aliases": ["editorial-grid"],
-    "makeDefault": false,
-    "brandPolicy": {
-      "defaultEnabled": true,
-      "userOverrideAllowed": true
-    }
+    "makeDefault": false
   },
   "files": {
     "styleMarkdown": "style.md",
@@ -81,7 +77,6 @@ Use this exact public shape. Do not introduce a second candidate manifest.
 - `style.platform`: `wechat`, `xhs`, `zhihu`, `weibo`, or `toutiao`; this is the explicit `target_platform` input.
 - `style.aliases`: unique, trimmed, non-empty natural-language strings excluding `style.id`, compared case-insensitively.
 - `style.makeDefault`: optional boolean installation intent. Omitted is equivalent to `false`; use `true` only after the user explicitly requests this style as the platform default. The first installed style for a supported platform that is not yet registered necessarily becomes that platform's default even when this field is omitted or false.
-- `style.brandPolicy`: both fields are booleans and `userOverrideAllowed` is always `true`.
 - `files`: use exactly the relative paths shown above. The installer consumes them directly.
 - `humanApproval.status`: `pending`, `approved`, or `rejected`.
 - `approvedAt`: a valid ISO 8601 instant only when approval status is `approved`; otherwise `null`.
@@ -153,24 +148,22 @@ Follow the post skill's existing spec shape:
 - `id` equals `candidate.style.id`.
 - `platform` is `wechat`, `xiaohongshu`, `zhihu`, `weibo`, or `toutiao` according to the mapping below.
 - `canvas` exactly matches the platform baseline design coordinate system; it is not a required delivery pixel size.
-- `layout.contentSafeArea` and `layout.brandReservedArea` exactly match the baseline and remain inside the canvas.
-- `fixedComponents.brandSlot` exactly matches the baseline, with `enabled: true`, `anchor: "top-right"`, and `assetFit: "contain"`.
-- `brandPolicy` equals `candidate.style.brandPolicy`.
+- `layout.contentSafeArea` exactly matches the baseline and remains inside the canvas.
 - `styleFile` is exactly `references/styles/<style-id>.md`.
 - `styleReference.image` is `assets/style-references/<style-id>.png`, `isGenerationInput` is `false`, and its policy says to ignore semantic content and identity.
 - `inputHandling` sets `preserveNativeOutput: true`, `outputCanvasRole: "design-coordinate-system"`, `allowPostGenerationResize: false`, and ratio tolerance `0.002`; it forbids crop, padding, rotation, and wrong-ratio stretching and uses `wrongRatioAction: "regenerate"`. Toutiao also sets `minShortEdge: 900`.
 
 Platform baseline geometry:
 
-| Candidate platform | Spec platform | Canvas | Safe area | Reserved area | Brand slot |
-| --- | --- | --- | --- | --- | --- |
-| `wechat` | `wechat` | `1600,1200` | `80,80,1440,1040` | `1320,44,240,100` | `1350,64,170,46` |
-| `xhs` | `xiaohongshu` | `1080,1440` | `80,96,920,1248` | `842,44,208,90` | `872,64,148,40` |
-| `zhihu` | `zhihu` | `1600,900` | `80,70,1440,760` | `1320,44,240,100` | `1350,64,170,46` |
-| `weibo` | `weibo` | `1080,1440` | `80,96,920,1248` | `842,44,208,90` | `872,64,148,40` |
-| `toutiao` | `toutiao` | `1600,900` | `80,70,1440,760` | `1320,44,240,100` | `1350,64,170,46` |
+| Candidate platform | Spec platform | Canvas | Safe area |
+| --- | --- | --- | --- |
+| `wechat` | `wechat` | `1600,1200` | `80,80,1440,1040` |
+| `xhs` | `xiaohongshu` | `1080,1440` | `80,96,920,1248` |
+| `zhihu` | `zhihu` | `1600,900` | `80,70,1440,760` |
+| `weibo` | `weibo` | `1080,1440` | `80,96,920,1248` |
+| `toutiao` | `toutiao` | `1600,900` | `80,70,1440,760` |
 
-Use ratio `4:3` for WeChat, `3:4` for XHS and Weibo, and `16:9` for Zhihu and Toutiao. XHS and Weibo are vertical; the other platforms are horizontal. Delivery images keep accepted native dimensions; Toutiao rejects a shortest edge below `900px`. Keep target-compatible input handling and generation constraints, including no crop, padding, stretching, or model-drawn brand.
+Use ratio `4:3` for WeChat, `3:4` for XHS and Weibo, and `16:9` for Zhihu and Toutiao. XHS and Weibo are vertical; the other platforms are horizontal. Delivery images keep accepted native dimensions; Toutiao rejects a shortest edge below `900px`. Keep target-compatible input handling, including no crop, padding, or stretching. Prompts and originality QA must reject source reconstruction and any source or third-party logo, logo-like mark, watermark, or signature.
 
 ## qa.json
 
@@ -210,8 +203,7 @@ See [qa.md](qa.md) for scoring meaning. The machine contract is:
     "aspect_ratio": true,
     "safe_area": true,
     "single_core_meaning": true,
-    "identity_leakage": true,
-    "brand_free": true
+    "identity_leakage": true
   },
   "calibration_images": [
     {
@@ -233,8 +225,7 @@ See [qa.md](qa.md) for scoring meaning. The machine contract is:
         "aspect_ratio": true,
         "safe_area": true,
         "single_core_meaning": true,
-        "identity_leakage": true,
-        "brand_free": true
+        "identity_leakage": true
       },
       "generation": {
         "backend": "runtime-image-tool",
@@ -257,14 +248,13 @@ See [qa.md](qa.md) for scoring meaning. The machine contract is:
   "selected_reference": {
     "image_id": "concept",
     "source_image": "calibration/concept.png",
-    "path": "calibration/style-reference.png",
-    "unbranded": true
+    "path": "calibration/style-reference.png"
   },
   "contact_sheet": "calibration/contact-sheet.png"
 }
 ```
 
-Provide exactly one `concept`, one `process`, and one `checklist`. The source-blind style review sees the compiled contract and all three images so it can assess cross-content adaptability; the originality review sees source evidence and all images but no style scores. The two review records use different run IDs. For DNA-only originality review, use `input_scope: "visual-dna-and-all-calibration-images"`, `source_mode: "visual-dna"`, `source_pixels_visible: false`, and `limitation: "source-pixels-unavailable"`. Repeat all seven scores and six hard gates per image. Every hard-gate value being `true` means that check passed, including `identity_leakage: true` meaning no identity leakage was found. Top-level gates are the logical ANDs across images. `dimension_averages` and `average_score` are arithmetic means rounded to two decimals. `style-reference.png` is byte-identical to `source_image`; `contact_sheet` names the required generated comparison sheet.
+Provide exactly one `concept`, one `process`, and one `checklist`. The source-blind style review sees the compiled contract and all three images so it can assess cross-content adaptability; the originality review sees source evidence and all images but no style scores. The two review records use different run IDs. For DNA-only originality review, use `input_scope: "visual-dna-and-all-calibration-images"`, `source_mode: "visual-dna"`, `source_pixels_visible: false`, and `limitation: "source-pixels-unavailable"`. Repeat all seven scores and five hard gates per image. Every hard-gate value being `true` means that check passed. In particular, `identity_leakage: true` means no source identity or semantic leakage and no source, third-party, or fabricated logo, logo-like mark, watermark, or signature was found. Top-level gates are the logical ANDs across images. `dimension_averages` and `average_score` are arithmetic means rounded to two decimals. `style-reference.png` is byte-identical to `source_image`; `contact_sheet` names the required generated comparison sheet.
 
 ## Registry Check
 

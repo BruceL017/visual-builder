@@ -23,36 +23,26 @@ const PLATFORM_CASES = {
     specPlatform: "wechat",
     canvas: { width: 1600, height: 1200, ratio: "4:3", orientation: "horizontal" },
     safeArea: { x: 80, y: 80, width: 1440, height: 1040 },
-    reservedArea: { x: 1320, y: 44, width: 240, height: 100 },
-    brandSlot: { x: 1350, y: 64, width: 170, height: 46 },
   },
   xhs: {
     specPlatform: "xiaohongshu",
     canvas: PLATFORM,
     safeArea: { x: 80, y: 96, width: 920, height: 1248 },
-    reservedArea: { x: 842, y: 44, width: 208, height: 90 },
-    brandSlot: { x: 872, y: 64, width: 148, height: 40 },
   },
   zhihu: {
     specPlatform: "zhihu",
     canvas: { width: 1600, height: 900, ratio: "16:9", orientation: "horizontal" },
     safeArea: { x: 80, y: 70, width: 1440, height: 760 },
-    reservedArea: { x: 1320, y: 44, width: 240, height: 100 },
-    brandSlot: { x: 1350, y: 64, width: 170, height: 46 },
   },
   weibo: {
     specPlatform: "weibo",
     canvas: PLATFORM,
     safeArea: { x: 80, y: 96, width: 920, height: 1248 },
-    reservedArea: { x: 842, y: 44, width: 208, height: 90 },
-    brandSlot: { x: 872, y: 64, width: 148, height: 40 },
   },
   toutiao: {
     specPlatform: "toutiao",
     canvas: { width: 1600, height: 900, ratio: "16:9", orientation: "horizontal" },
     safeArea: { x: 80, y: 70, width: 1440, height: 760 },
-    reservedArea: { x: 1320, y: 44, width: 240, height: 100 },
-    brandSlot: { x: 1350, y: 64, width: 170, height: 46 },
     minShortEdge: 900,
   },
 };
@@ -151,9 +141,9 @@ Apply subtle paper grain without reducing readability.
 
 ## Platform Geometry
 
-Respect the platform safe area and quiet brand reservation.
+Respect the platform safe area and preserve a clear composition.
 
-## Debranding And Prohibitions
+## Originality And Prohibitions
 
 Do not copy source identity, wording, or signature motifs.
 
@@ -179,7 +169,7 @@ async function makeValidCandidate() {
   await mkdir(path.join(root, "prompts"));
   await mkdir(path.join(root, "calibration"));
   await writeJson(path.join(root, "candidate.json"), {
-    schemaVersion: 1,
+    schemaVersion: 2,
     status: "ready_for_review",
     template_ready: false,
     style: {
@@ -188,7 +178,6 @@ async function makeValidCandidate() {
       platform: "xhs",
       defaultUse: "Structured explainers and practical checklists",
       aliases: ["editorial-grid"],
-      brandPolicy: { defaultEnabled: true, userOverrideAllowed: true },
     },
     files: {
       styleMarkdown: "style.md",
@@ -237,12 +226,7 @@ async function makeValidCandidate() {
     colors: { "paper.warm": "#F8F5EE", "ink.dark": "#1B1B1B" },
     layout: {
       contentSafeArea: { x: 80, y: 96, width: 920, height: 1248 },
-      brandReservedArea: { x: 842, y: 44, width: 208, height: 90 },
     },
-    fixedComponents: {
-      brandSlot: { enabled: true, anchor: "top-right", x: 872, y: 64, width: 148, height: 40, assetFit: "contain" },
-    },
-    brandPolicy: { defaultEnabled: true, userOverrideAllowed: true },
     inputHandling: {
       preserveNativeOutput: true,
       ratioTolerance: 0.002,
@@ -254,11 +238,10 @@ async function makeValidCandidate() {
       allowWrongRatioStretch: false,
       wrongRatioAction: "regenerate",
     },
-    generationConstraints: { forbidModelDrawnBrand: true, keepBrandReservedAreaClear: true },
     styleReference: {
       image: "assets/style-references/quiet-grid.png",
       usage: "QA and failure review only",
-      contentPolicy: "Ignore semantic content, identity, and brand elements.",
+      contentPolicy: "Ignore semantic content, identity, logos, watermarks, and signatures.",
       isGenerationInput: false,
     },
   });
@@ -314,7 +297,6 @@ async function makeValidCandidate() {
       image_id: "concept",
       source_image: "calibration/concept.png",
       path: "calibration/style-reference.png",
-      unbranded: true,
     },
     contact_sheet: "calibration/contact-sheet.png",
   });
@@ -334,26 +316,16 @@ async function configurePlatformCandidate(root, platform, {
   width = PLATFORM_CASES[platform].canvas.width,
   height = PLATFORM_CASES[platform].canvas.height,
   makeDefault = false,
-  brandDefaultEnabled = true,
 } = {}) {
   const platformCase = PLATFORM_CASES[platform];
   await mutateJson(root, "candidate.json", (candidate) => {
     candidate.style.platform = platform;
     candidate.style.makeDefault = makeDefault;
-    candidate.style.brandPolicy.defaultEnabled = brandDefaultEnabled;
   });
   await mutateJson(root, "style.spec.json", (spec) => {
     spec.platform = platformCase.specPlatform;
     spec.canvas = platformCase.canvas;
     spec.layout.contentSafeArea = platformCase.safeArea;
-    spec.layout.brandReservedArea = platformCase.reservedArea;
-    spec.fixedComponents.brandSlot = {
-      enabled: true,
-      anchor: "top-right",
-      ...platformCase.brandSlot,
-      assetFit: "contain",
-    };
-    spec.brandPolicy.defaultEnabled = brandDefaultEnabled;
     spec.inputHandling = {
       preserveNativeOutput: true,
       ratioTolerance: 0.002,
@@ -384,7 +356,6 @@ async function configureToutiaoCandidate(root, { width = 1672, height = 941 } = 
     width,
     height,
     makeDefault: true,
-    brandDefaultEnabled: false,
   });
 }
 
@@ -397,6 +368,102 @@ test("accepts a complete reviewable candidate", () => withCandidate(async (root)
   assert.equal(result.summary.installable, false);
 }));
 
+test("rejects candidate schemaVersion 1", () => withCandidate(async (root) => {
+  await mutateJson(root, "candidate.json", (candidate) => { candidate.schemaVersion = 1; });
+  const result = await validateCandidate(root);
+  assert.ok(result.errors.some((error) => error.field === "candidate.schemaVersion"));
+}));
+
+const LEGACY_FIELD_CASES = [
+  {
+    name: "candidate style.brandPolicy",
+    file: "candidate.json",
+    field: "candidate.style.brandPolicy",
+    mutate: (candidate) => { candidate.style.brandPolicy = { defaultEnabled: false, userOverrideAllowed: true }; },
+  },
+  {
+    name: "spec brandPolicy",
+    file: "style.spec.json",
+    field: "style.spec.brandPolicy",
+    mutate: (spec) => { spec.brandPolicy = { defaultEnabled: false, userOverrideAllowed: true }; },
+  },
+  {
+    name: "spec layout.brandReservedArea",
+    file: "style.spec.json",
+    field: "style.spec.layout.brandReservedArea",
+    mutate: (spec) => { spec.layout.brandReservedArea = { x: 842, y: 44, width: 208, height: 90 }; },
+  },
+  {
+    name: "spec fixedComponents.brandSlot",
+    file: "style.spec.json",
+    field: "style.spec.fixedComponents.brandSlot",
+    mutate: (spec) => { spec.fixedComponents = { brandSlot: { x: 872, y: 64, width: 148, height: 40 } }; },
+  },
+  {
+    name: "spec generationConstraints.forbidModelDrawnBrand",
+    file: "style.spec.json",
+    field: "style.spec.generationConstraints.forbidModelDrawnBrand",
+    mutate: (spec) => { spec.generationConstraints = { forbidModelDrawnBrand: true }; },
+  },
+  {
+    name: "spec generationConstraints.keepBrandReservedAreaClear",
+    file: "style.spec.json",
+    field: "style.spec.generationConstraints.keepBrandReservedAreaClear",
+    mutate: (spec) => { spec.generationConstraints = { keepBrandReservedAreaClear: true }; },
+  },
+  {
+    name: "QA top-level hard_gates.brand_free",
+    file: "qa.json",
+    field: "qa.hard_gates.brand_free",
+    mutate: (qa) => { qa.hard_gates.brand_free = true; },
+  },
+  {
+    name: "QA per-image hard_gates.brand_free",
+    file: "qa.json",
+    field: "qa.calibration_images[0].hard_gates.brand_free",
+    mutate: (qa) => { qa.calibration_images[0].hard_gates.brand_free = true; },
+  },
+  {
+    name: "QA selected_reference.unbranded",
+    file: "qa.json",
+    field: "qa.selected_reference.unbranded",
+    mutate: (qa) => { qa.selected_reference.unbranded = true; },
+  },
+];
+
+for (const legacy of LEGACY_FIELD_CASES) {
+  test(`rejects legacy ${legacy.name}`, () => withCandidate(async (root) => {
+    await mutateJson(root, legacy.file, legacy.mutate);
+    const result = await validateCandidate(root);
+    assert.ok(result.errors.some((error) => error.field === legacy.field && error.code === "legacy-field"));
+  }));
+}
+
+test("identity_leakage covers logo, watermark, and signature leakage", () => withCandidate(async (root) => {
+  await mutateJson(root, "qa.json", (qa) => { qa.hard_gates.identity_leakage = false; });
+  const result = await validateCandidate(root);
+  const error = result.errors.find((item) => item.field === "qa.hard_gates.identity_leakage");
+  assert.equal(error?.code, "qa-hard-gate");
+  assert.match(error?.message ?? "", /logo.*watermark.*signature/i);
+}));
+
+test("accepts a style-reference policy covering semantic content and identity leakage", () => withCandidate(async (root) => {
+  const result = await validateCandidate(root);
+  assert.equal(result.valid, true, JSON.stringify(result.errors));
+}));
+
+for (const [name, policy] of [
+  ["identity leakage only", "Ignore identity, logos, watermarks, and signatures."],
+  ["semantic content only", "Ignore semantic content."],
+  ["semantic content and logos without identity", "Ignore semantic content and logos."],
+]) {
+  test(`rejects a style-reference policy covering ${name}`, () => withCandidate(async (root) => {
+    await mutateJson(root, "style.spec.json", (spec) => { spec.styleReference.contentPolicy = policy; });
+    const result = await validateCandidate(root);
+    assert.ok(result.errors.some((error) => error.field === "style.spec.styleReference.contentPolicy"));
+  }));
+}
+
 for (const [platform, displayName] of [["wechat", "WeChat"], ["zhihu", "Zhihu"]]) {
   test(`accepts a complete ${displayName} candidate`, () => withCandidate(async (root) => {
     await configurePlatformCandidate(root, platform);
@@ -406,10 +473,9 @@ for (const [platform, displayName] of [["wechat", "WeChat"], ["zhihu", "Zhihu"]]
   }));
 }
 
-test("accepts a Weibo default candidate with branding disabled by default", () => withCandidate(async (root) => {
+test("accepts a Weibo default candidate", () => withCandidate(async (root) => {
   await configurePlatformCandidate(root, "weibo", {
     makeDefault: true,
-    brandDefaultEnabled: false,
   });
 
   const result = await validateCandidate(root);
@@ -514,12 +580,6 @@ test("rejects an out-of-baseline safe area", () => withCandidate(async (root) =>
   await mutateJson(root, "style.spec.json", (spec) => { spec.layout.contentSafeArea.x = 81; });
   const result = await validateCandidate(root);
   assert.ok(result.errors.some((error) => error.field === "style.spec.layout.contentSafeArea"));
-}));
-
-test("rejects a brand slot outside the reserved area", () => withCandidate(async (root) => {
-  await mutateJson(root, "style.spec.json", (spec) => { spec.fixedComponents.brandSlot.x = 700; });
-  const result = await validateCandidate(root);
-  assert.ok(result.errors.some((error) => error.field === "style.spec.fixedComponents.brandSlot"));
 }));
 
 test("rejects a selected reference that is not byte-identical", () => withCandidate(async (root) => {
@@ -737,8 +797,8 @@ test("a temporary CODEX_HOME recovers dependencies, approves, and installs only 
     assert.equal(before.valid, true, JSON.stringify(before.errors));
     await markApproved(candidateRoot, { confirmHumanReview: true, confirmedBy: "Integration reviewer" });
 
-    const validator = await import(pathToFileURL(path.join(postRoot, "scripts", "validate-style-bundle.mjs")));
-    const installer = await import(pathToFileURL(path.join(postRoot, "scripts", "install-style-bundle.mjs")));
+    const validator = await import(pathToFileURL(path.join(targetRoot, "scripts", "validate-style-bundle.mjs")));
+    const installer = await import(pathToFileURL(path.join(targetRoot, "scripts", "install-style-bundle.mjs")));
     assert.equal(validator.validateStyleBundle({ bundleDir: candidateRoot, skillRoot: targetRoot }).candidate.style.id, "quiet-grid");
 
     const conflict = path.join(targetRoot, "references", "styles", "quiet-grid.md");

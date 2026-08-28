@@ -3,7 +3,7 @@ name: visual-builder
 description: >-
   Orchestrate the complete human-gated pipeline that turns a user-supplied designed image or visual_dna_system document into a debranded, platform-specific illustration style, calibrates it across concept, process, and checklist structures, and registers it with the local post-illustration-images skill after approval. Use only when explicitly invoked as $visual-builder. Do NOT use for ordinary image editing, one-off image generation, natural-photo presets, logo extraction, pixel-identical cloning, or installing an unreviewed style.
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
   author: "BruceL017"
   updated_at: "2026-08-28"
   origin: "own"
@@ -45,7 +45,7 @@ For a new candidate, require all named inputs before compiling:
 - `input_mode`: `image` or `visual-dna`.
 - `source`: readable image path for `image`, or JSON/Markdown containing a `visual_dna_system` object for `visual-dna`.
 - `target_platform`: exactly `wechat`, `xhs`, `zhihu`, `weibo`, or `toutiao`; never infer it from the source ratio.
-- Optional overrides before review: `style_id`, `display_name`, `purpose`, `aliases`, `default_use`, `brand_default_enabled`, and `make_default`. Map `purpose` only to `style.md` `## Purpose`; map `default_use` to `candidate.style.defaultUse` and the registry's `defaultUse`. Map `make_default` to optional `candidate.style.makeDefault`; omit it or use `false` unless the user explicitly requests this style as the platform default.
+- Optional overrides before review: `style_id`, `display_name`, `purpose`, `aliases`, `default_use`, and `make_default`. Map `purpose` only to `style.md` `## Purpose`; map `default_use` to `candidate.style.defaultUse` and the registry's `defaultUse`. Map `make_default` to optional `candidate.style.makeDefault`; omit it or use `false` unless the user explicitly requests this style as the platform default.
 
 Write new candidates only to `${CODEX_HOME:-$HOME/.codex}/visual-builder-candidates/<style_id>`. Do not accept an alternate output root for a new candidate. Refuse to overwrite an existing style directory; treat an existing directory as a resume request only when the user identifies that candidate.
 
@@ -112,7 +112,7 @@ CREATE A TODO LIST FOR THE TASKS BELOW and update it while running. Stop at the 
 - [ ] Suggest and confirm debranded candidate metadata.
 - [ ] Compile debranded style documents and platform geometry.
 - [ ] Generate the three neutral calibration images independently.
-- [ ] Run machine QA and select the best unbranded reference.
+- [ ] Run machine QA and select the highest-scoring passing reference.
 - [ ] Validate the candidate bundle.
 - [ ] Obtain explicit human approval.
 - [ ] Mark approved, invoke the target skill installer, and revalidate its registry.
@@ -152,7 +152,7 @@ DNA-only input with at least four signals and no dominant identity may continue 
 
 ### 2.5 Suggest Candidate Metadata
 
-When overrides are absent, derive a generic two-to-four-token `style_id`, a concise display name, `purpose`, `default_use`, and zero or more natural-language aliases from the debranded DNA. Default `makeDefault` to false or omit it; only set it to true from an explicit user request. Do not reuse source brands, titles, proper nouns, topics, or identity-bearing motifs. Check the target registry for case-insensitive ID/alias conflicts when it is available. Write the suggestions into the candidate and `style.md`; the user may change them before approval. Revalidate after any change, and rebuild paths/prompts/QA when `style_id` or brand default changes.
+When overrides are absent, derive a generic two-to-four-token `style_id`, a concise display name, `purpose`, `default_use`, and zero or more natural-language aliases from the debranded DNA. Default `makeDefault` to false or omit it; only set it to true from an explicit user request. Do not reuse source brands, titles, proper nouns, topics, or identity-bearing motifs. Check the target registry for case-insensitive ID/alias conflicts when it is available. Write the suggestions into the candidate and `style.md`; the user may change them before approval. Revalidate after any change, and rebuild paths/prompts/QA when `style_id` changes.
 
 ### 3. Compile Without Identity Leakage
 
@@ -168,20 +168,11 @@ Always remove or generalize:
 
 Never pass the source image to a generation backend. Never ask for “the same image,” pixel matching, or literal reconstruction. Use the compiled text-only style contract for generation.
 
-Compile `style.md` and a target-compatible `style.spec.json`. Derive the design coordinate system, content safe area, brand reserved area, and brand slot from the platform baseline, not from the source. Include:
-
-```json
-"brandPolicy": {
-  "defaultEnabled": true,
-  "userOverrideAllowed": true
-}
-```
-
-Allow `defaultEnabled: false` only when the user changes it before approval. Keep a valid brand slot either way. Set `styleReference.isGenerationInput` to `false` and its final path to `assets/style-references/<style_id>.png`.
+Compile `style.md` and a target-compatible `style.spec.json`. Derive the design coordinate system and content safe area from the platform baseline, not from the source. Set `styleReference.isGenerationInput` to `false` and its final path to `assets/style-references/<style_id>.png`.
 
 ### 4. Calibrate Across Three Structures
 
-Resolve image generation by capability, not by credential variable name or provider label. Accept a callable runtime-native backend or an already-configured API adapter, including third-party endpoints and third-party keys. Names such as `openai-compatible` or `OPENAI_API_KEY` describe an adapter dialect only; they never prove that the endpoint or credential was issued by OpenAI, and an official OpenAI key must not be required. For a configured API adapter, resolve its active endpoint and credential context explicitly; a runtime-native tool needs only callable image capability and current-request artifact verification. In both cases verify an image-capable model and its platform-compatible geometry, and never persist or print credential values. Use non-billable model metadata when the backend supports it, then treat the first readable, current-request raster artifact as the capability canary. Generate images two and three only after that canary passes artifact, aspect-ratio, single-meaning, fixed-area, and any platform minimum-edge checks. Preserve accepted native pixels; never crop, pad, stretch, upscale, or force them to the design coordinate dimensions.
+Resolve image generation by capability, not by credential variable name or provider label. Accept a callable runtime-native backend or an already-configured API adapter, including third-party endpoints and third-party keys. Names such as `openai-compatible` or `OPENAI_API_KEY` describe an adapter dialect only; they never prove that the endpoint or credential was issued by OpenAI, and an official OpenAI key must not be required. For a configured API adapter, resolve its active endpoint and credential context explicitly; a runtime-native tool needs only callable image capability and current-request artifact verification. In both cases verify an image-capable model and its platform-compatible geometry, and never persist or print credential values. Use non-billable model metadata when the backend supports it, then treat the first readable, current-request raster artifact as the capability canary. Generate images two and three only after that canary passes artifact, aspect-ratio, single-meaning, safe-area, and any platform minimum-edge checks. Preserve accepted native pixels; never crop, pad, stretch, upscale, or force them to the design coordinate dimensions.
 
 Create new, neutral subject matter unrelated to the source. Compile and save one text-only prompt per structure:
 
@@ -189,13 +180,13 @@ Create new, neutral subject matter unrelated to the source. Compile and save one
 - `process`: show a clear three- or four-step directional sequence.
 - `checklist`: show a scannable set of four or five parallel items.
 
-Generate each image independently at the platform ratio. Record backend, model, actual output dimensions, and prompt path in `qa.json`, using the existing candidate schema. The three prompts must share the style contract but not a fixed composition. Do not place production branding or page numbers in calibration images. When `brandPolicy.defaultEnabled` is true, keep the platform brand area naturally quiet; when false, that area is inactive and receives no reservation instruction.
+Generate each image independently at the platform ratio. Record backend, model, actual output dimensions, and prompt path in `qa.json`, using the existing candidate schema. The three prompts must share the style contract but not a fixed composition. Do not place source or third-party logos, logo-like marks, watermarks, signatures, or page numbers in calibration images.
 
 ### 5. Review And Select
 
 Read [qa.md](references/qa.md). Score every image independently for color, typography, texture, illustration, spacing, composition, and cross-content adaptability. Require every dimension to be at least 75, every image total to be at least 85, and the three-image average to be at least 88. Require all hard checks to pass.
 
-Choose the highest-total passing image, copy it byte-for-byte to `calibration/style-reference.png`, and record both paths in `qa.selected_reference`. A tie resolves in the stable order `concept`, `process`, `checklist`. Run `node <visual-builder>/scripts/build-contact-sheet.mjs --concept <path> --process <path> --checklist <path> --output calibration/contact-sheet.png`, then record it as `qa.contact_sheet`. The reference must be unbranded and is for QA/failure review only.
+Choose the highest-total passing image, copy it byte-for-byte to `calibration/style-reference.png`, and record both paths in `qa.selected_reference`. A tie resolves in the stable order `concept`, `process`, `checklist`. Run `node <visual-builder>/scripts/build-contact-sheet.mjs --concept <path> --process <path> --checklist <path> --output calibration/contact-sheet.png`, then record it as `qa.contact_sheet`. The reference must have passed `identity_leakage` and is for QA/failure review only.
 
 Run:
 

@@ -31,7 +31,7 @@ Apply all transformations, even when the user owns the source brand:
 5. Replace identity-bearing motifs with generic primitives serving the same visual function.
 6. Prohibit source-image input to the generator and prohibit prompts asking for imitation, sameness, or reconstruction.
 
-Record a short `debranding` section in `style.md` listing what was generalized and the negative constraints passed to generation.
+Record a short originality section in `style.md` listing what was generalized and the negative constraints passed to generation.
 
 ## style.md Shape
 
@@ -46,7 +46,7 @@ Write these sections in order:
 7. `## Components And Illustration`
 8. `## Texture And Material`
 9. `## Platform Geometry`
-10. `## Debranding And Prohibitions`
+10. `## Originality And Prohibitions`
 11. `## Calibration Guidance`
 
 Use declarative rules. Do not mention the source filename, brand, subject, or original layout.
@@ -63,11 +63,6 @@ Use the target skill's current schema and the exact baseline in [candidate-contr
   "canvas": {},
   "colors": {},
   "layout": {},
-  "fixedComponents": {},
-  "brandPolicy": {
-    "defaultEnabled": true,
-    "userOverrideAllowed": true
-  },
   "inputHandling": {
     "preserveNativeOutput": true,
     "ratioTolerance": 0.002,
@@ -79,12 +74,11 @@ Use the target skill's current schema and the exact baseline in [candidate-contr
     "allowWrongRatioStretch": false,
     "wrongRatioAction": "regenerate"
   },
-  "generationConstraints": {},
   "styleReference": {}
 }
 ```
 
-Use the candidate ID directly in both installed style paths. Keep `fixedComponents.brandSlot.enabled: true` regardless of the brand default; runtime policy controls whether the slot is active.
+Use the candidate ID directly in both installed style paths. Optional fixed components and generation constraints must describe reusable, non-identity-bearing visual rules.
 
 Keep optional `candidate.style.makeDefault` out of `style.spec.json`; it is registry installation intent, not a visual rule. Omitted and `false` preserve the current platform default. Use `true` only when the user explicitly requests the candidate as that platform's default.
 
@@ -96,8 +90,7 @@ Each prompt is self-contained text and includes:
 2. one neutral content brief;
 3. the same compiled style rules;
 4. a structure-specific composition request;
-5. negatives: no logo, watermark, brand name, source copy, page number, copyrighted character, photorealistic reference reconstruction, or model-drawn production brand;
-6. when `brandPolicy.defaultEnabled` is true, a request to keep the brand reserved area visually quiet without drawing a brand; when false, no brand-area reservation instruction.
+5. negatives: no source or third-party logo, logo-like mark, watermark, signature, brand name, source copy, page number, copyrighted character, or photorealistic reference reconstruction.
 
 Do not include the source path, source image, original semantic content, or a link to it. Vary composition by meaning; do not freeze one template arrangement across the three prompts.
 
