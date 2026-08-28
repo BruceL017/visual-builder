@@ -1,18 +1,60 @@
 import assert from "node:assert/strict";
-import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 import { deflateSync } from "node:zlib";
+import { checkCompanions } from "../scripts/check-companions.mjs";
 import { markApproved } from "../scripts/mark-approved.mjs";
 import { HARD_GATE_KEYS, SCORE_KEYS, validateCandidate } from "../scripts/validate-candidate.mjs";
+
+const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const PLATFORM = {
   width: 1080,
   height: 1440,
   ratio: "3:4",
   orientation: "vertical",
+};
+
+const PLATFORM_CASES = {
+  wechat: {
+    specPlatform: "wechat",
+    canvas: { width: 1600, height: 1200, ratio: "4:3", orientation: "horizontal" },
+    safeArea: { x: 80, y: 80, width: 1440, height: 1040 },
+    reservedArea: { x: 1320, y: 44, width: 240, height: 100 },
+    brandSlot: { x: 1350, y: 64, width: 170, height: 46 },
+  },
+  xhs: {
+    specPlatform: "xiaohongshu",
+    canvas: PLATFORM,
+    safeArea: { x: 80, y: 96, width: 920, height: 1248 },
+    reservedArea: { x: 842, y: 44, width: 208, height: 90 },
+    brandSlot: { x: 872, y: 64, width: 148, height: 40 },
+  },
+  zhihu: {
+    specPlatform: "zhihu",
+    canvas: { width: 1600, height: 900, ratio: "16:9", orientation: "horizontal" },
+    safeArea: { x: 80, y: 70, width: 1440, height: 760 },
+    reservedArea: { x: 1320, y: 44, width: 240, height: 100 },
+    brandSlot: { x: 1350, y: 64, width: 170, height: 46 },
+  },
+  weibo: {
+    specPlatform: "weibo",
+    canvas: PLATFORM,
+    safeArea: { x: 80, y: 96, width: 920, height: 1248 },
+    reservedArea: { x: 842, y: 44, width: 208, height: 90 },
+    brandSlot: { x: 872, y: 64, width: 148, height: 40 },
+  },
+  toutiao: {
+    specPlatform: "toutiao",
+    canvas: { width: 1600, height: 900, ratio: "16:9", orientation: "horizontal" },
+    safeArea: { x: 80, y: 70, width: 1440, height: 760 },
+    reservedArea: { x: 1320, y: 44, width: 240, height: 100 },
+    brandSlot: { x: 1350, y: 64, width: 170, height: 46 },
+    minShortEdge: 900,
+  },
 };
 
 const pngCache = new Map();
@@ -70,6 +112,55 @@ function gates(value = true) {
 
 function scores(value) {
   return Object.fromEntries(SCORE_KEYS.map((key) => [key, value]));
+}
+
+function validStyleMarkdown() {
+  return `# Quiet Grid
+
+## Purpose
+
+Support structured explainers and practical checklists.
+
+## Visual Character
+
+Use a calm editorial rhythm with clear visual hierarchy.
+
+### Supporting Details
+
+Keep secondary elements restrained and legible.
+
+## Palette Roles
+
+Use warm paper, dark ink, and one restrained accent role.
+
+## Typography
+
+Use sturdy display type with quieter supporting text.
+
+## Composition Grammar
+
+Build around one focal idea and balanced supporting groups.
+
+## Components And Illustration
+
+Use simple panels, labels, dividers, and geometric icons.
+
+## Texture And Material
+
+Apply subtle paper grain without reducing readability.
+
+## Platform Geometry
+
+Respect the platform safe area and quiet brand reservation.
+
+## Debranding And Prohibitions
+
+Do not copy source identity, wording, or signature motifs.
+
+## Calibration Guidance
+
+Preserve the visual system across concept, process, and checklist structures.
+`;
 }
 
 async function writeJson(file, value) {
@@ -137,7 +228,7 @@ async function makeValidCandidate() {
     original_retained: false,
     used_as_generation_reference: false,
   });
-  await writeFile(path.join(root, "style.md"), "# Quiet Grid\n\n## Debranding And Prohibitions\n\nNo identity copying.\n");
+  await writeFile(path.join(root, "style.md"), validStyleMarkdown());
   await writeJson(path.join(root, "style.spec.json"), {
     id: "quiet-grid",
     styleFile: "references/styles/quiet-grid.md",
@@ -239,31 +330,42 @@ async function withCandidate(run) {
   }
 }
 
-async function configureToutiaoCandidate(root, { width = 1672, height = 941 } = {}) {
+async function configurePlatformCandidate(root, platform, {
+  width = PLATFORM_CASES[platform].canvas.width,
+  height = PLATFORM_CASES[platform].canvas.height,
+  makeDefault = false,
+  brandDefaultEnabled = true,
+} = {}) {
+  const platformCase = PLATFORM_CASES[platform];
   await mutateJson(root, "candidate.json", (candidate) => {
-    candidate.style.platform = "toutiao";
-    candidate.style.makeDefault = true;
-    candidate.style.brandPolicy.defaultEnabled = false;
+    candidate.style.platform = platform;
+    candidate.style.makeDefault = makeDefault;
+    candidate.style.brandPolicy.defaultEnabled = brandDefaultEnabled;
   });
   await mutateJson(root, "style.spec.json", (spec) => {
-    spec.platform = "toutiao";
-    spec.canvas = { width: 1600, height: 900, ratio: "16:9", orientation: "horizontal" };
-    spec.layout.contentSafeArea = { x: 80, y: 70, width: 1440, height: 760 };
-    spec.layout.brandReservedArea = { x: 1320, y: 44, width: 240, height: 100 };
-    spec.fixedComponents.brandSlot = { enabled: true, anchor: "top-right", x: 1350, y: 64, width: 170, height: 46, assetFit: "contain" };
-    spec.brandPolicy.defaultEnabled = false;
+    spec.platform = platformCase.specPlatform;
+    spec.canvas = platformCase.canvas;
+    spec.layout.contentSafeArea = platformCase.safeArea;
+    spec.layout.brandReservedArea = platformCase.reservedArea;
+    spec.fixedComponents.brandSlot = {
+      enabled: true,
+      anchor: "top-right",
+      ...platformCase.brandSlot,
+      assetFit: "contain",
+    };
+    spec.brandPolicy.defaultEnabled = brandDefaultEnabled;
     spec.inputHandling = {
       preserveNativeOutput: true,
       ratioTolerance: 0.002,
       outputCanvasRole: "design-coordinate-system",
       allowPostGenerationResize: false,
-      minShortEdge: 900,
       allowCrop: false,
       allowPadding: false,
       allowRotation: false,
       allowWrongRatioStretch: false,
       wrongRatioAction: "regenerate",
     };
+    if (platformCase.minShortEdge) spec.inputHandling.minShortEdge = platformCase.minShortEdge;
   });
   await mutateJson(root, "qa.json", (qa) => {
     for (const image of qa.calibration_images) {
@@ -277,38 +379,38 @@ async function configureToutiaoCandidate(root, { width = 1672, height = 941 } = 
   await writeFile(path.join(root, "calibration", "style-reference.png"), png(width, height, "concept"));
 }
 
+async function configureToutiaoCandidate(root, { width = 1672, height = 941 } = {}) {
+  await configurePlatformCandidate(root, "toutiao", {
+    width,
+    height,
+    makeDefault: true,
+    brandDefaultEnabled: false,
+  });
+}
+
 test("accepts a complete reviewable candidate", () => withCandidate(async (root) => {
   const result = await validateCandidate(root);
   assert.equal(result.valid, true, JSON.stringify(result.errors));
   assert.equal(result.summary.styleId, "quiet-grid");
+  assert.equal(result.summary.platform, "xhs");
   assert.equal(result.summary.makeDefault, false);
   assert.equal(result.summary.installable, false);
 }));
 
+for (const [platform, displayName] of [["wechat", "WeChat"], ["zhihu", "Zhihu"]]) {
+  test(`accepts a complete ${displayName} candidate`, () => withCandidate(async (root) => {
+    await configurePlatformCandidate(root, platform);
+    const result = await validateCandidate(root);
+    assert.equal(result.valid, true, JSON.stringify(result.errors));
+    assert.equal(result.summary.platform, platform);
+  }));
+}
+
 test("accepts a Weibo default candidate with branding disabled by default", () => withCandidate(async (root) => {
-  await mutateJson(root, "candidate.json", (candidate) => {
-    candidate.style.platform = "weibo";
-    candidate.style.makeDefault = true;
-    candidate.style.brandPolicy.defaultEnabled = false;
+  await configurePlatformCandidate(root, "weibo", {
+    makeDefault: true,
+    brandDefaultEnabled: false,
   });
-  await mutateJson(root, "style.spec.json", (spec) => {
-    spec.platform = "weibo";
-    spec.canvas = { width: 1080, height: 1440, ratio: "3:4", orientation: "vertical" };
-    spec.layout.contentSafeArea = { x: 80, y: 96, width: 920, height: 1248 };
-    spec.layout.brandReservedArea = { x: 842, y: 44, width: 208, height: 90 };
-    spec.fixedComponents.brandSlot = { enabled: true, anchor: "top-right", x: 872, y: 64, width: 148, height: 40, assetFit: "contain" };
-    spec.brandPolicy.defaultEnabled = false;
-  });
-  await mutateJson(root, "qa.json", (qa) => {
-    for (const image of qa.calibration_images) {
-      image.generation.width = 1080;
-      image.generation.height = 1440;
-    }
-  });
-  for (const id of ["concept", "process", "checklist"]) {
-    await writeFile(path.join(root, "calibration", `${id}.png`), png(1080, 1440, id));
-  }
-  await writeFile(path.join(root, "calibration", "style-reference.png"), png(1080, 1440, "concept"));
 
   const result = await validateCandidate(root);
   assert.equal(result.valid, true, JSON.stringify(result.errors));
@@ -366,6 +468,40 @@ test("rejects a missing bundle file", () => withCandidate(async (root) => {
   await rm(path.join(root, "prompts", "process.md"));
   const result = await validateCandidate(root);
   assert.ok(result.errors.some((error) => error.field === "prompts/process.md" && error.code === "missing-file"));
+}));
+
+test("rejects style.md when a required section is missing", () => withCandidate(async (root) => {
+  const file = path.join(root, "style.md");
+  const markdown = await readFile(file, "utf8");
+  await writeFile(file, markdown.replace("## Texture And Material\n\nApply subtle paper grain without reducing readability.\n\n", ""));
+  const result = await validateCandidate(root);
+  assert.ok(result.errors.some((error) => error.field === "style.md.sections" && error.code === "invalid-style-contract"));
+}));
+
+test("rejects style.md when required sections are out of order", () => withCandidate(async (root) => {
+  const file = path.join(root, "style.md");
+  const markdown = await readFile(file, "utf8");
+  const typography = "## Typography\n\nUse sturdy display type with quieter supporting text.\n\n";
+  const composition = "## Composition Grammar\n\nBuild around one focal idea and balanced supporting groups.\n\n";
+  await writeFile(file, markdown.replace(`${typography}${composition}`, `${composition}${typography}`));
+  const result = await validateCandidate(root);
+  assert.ok(result.errors.some((error) => error.field === "style.md.sections" && error.code === "invalid-style-contract"));
+}));
+
+test("rejects style.md when a required section has no body", () => withCandidate(async (root) => {
+  const file = path.join(root, "style.md");
+  const markdown = await readFile(file, "utf8");
+  await writeFile(file, markdown.replace("## Typography\n\nUse sturdy display type with quieter supporting text.\n\n", "## Typography\n\n### Supporting Details\n\n"));
+  const result = await validateCandidate(root);
+  assert.ok(result.errors.some((error) => error.field === "style.md.sections[3]" && error.code === "empty-style-section"));
+}));
+
+test("rejects style.md when H1 differs from candidate displayName", () => withCandidate(async (root) => {
+  const file = path.join(root, "style.md");
+  const markdown = await readFile(file, "utf8");
+  await writeFile(file, markdown.replace("# Quiet Grid", "# Different Name"));
+  const result = await validateCandidate(root);
+  assert.ok(result.errors.some((error) => error.field === "style.md.h1" && error.code === "invalid-style-contract"));
 }));
 
 test("rejects a missing calibration contact sheet", () => withCandidate(async (root) => {
@@ -564,15 +700,39 @@ test("marks a valid candidate approved and installable", () => withCandidate(asy
   assert.equal(result.valid, true, JSON.stringify(result.errors));
 }));
 
-test("one candidate validates, approves, and installs through the target skill", {
+test("a temporary CODEX_HOME recovers dependencies, approves, and installs only the production subset", {
   skip: !process.env.POST_ILLUSTRATION_SKILL_ROOT,
 }, async () => {
   const postRoot = path.resolve(process.env.POST_ILLUSTRATION_SKILL_ROOT);
-  const candidateRoot = await makeValidCandidate();
-  const targetRoot = await mkdtemp(path.join(os.tmpdir(), "visual-builder-target-"));
+  const candidateSource = await makeValidCandidate();
+  const codexHome = await mkdtemp(path.join(os.tmpdir(), "visual-builder-recovery-"));
+  const skillsRoot = path.join(codexHome, "skills");
+  const targetRoot = path.join(skillsRoot, "post-illustration-images");
+  const candidateRoot = path.join(codexHome, "visual-builder-candidates", "quiet-grid");
   try {
+    await mkdir(path.join(skillsRoot, "visual-dna-system", "references"), { recursive: true });
+    await writeFile(
+      path.join(skillsRoot, "visual-dna-system", "SKILL.md"),
+      "---\nname: visual-dna-system\ndescription: Recovery fixture.\n---\n",
+    );
+    await writeFile(path.join(skillsRoot, "visual-dna-system", "references", "output-schema.md"), "# Schema\n");
+    await writeFile(path.join(skillsRoot, "visual-dna-system", "references", "originality-guardrails.md"), "# Guardrails\n");
+    await symlink(repositoryRoot, path.join(skillsRoot, "visual-builder"), "dir");
+
+    const blocked = await checkCompanions({ codexHome });
+    assert.equal(blocked.ready, false);
+    assert.equal(blocked.companions.find(({ name }) => name === "post-illustration-images").status, "missing");
+    await assert.rejects(stat(path.join(codexHome, "visual-builder-candidates")), { code: "ENOENT" });
+
+    await mkdir(targetRoot, { recursive: true });
+    await cp(path.join(postRoot, "SKILL.md"), path.join(targetRoot, "SKILL.md"));
+    await cp(path.join(postRoot, "scripts"), path.join(targetRoot, "scripts"), { recursive: true });
     await cp(path.join(postRoot, "references"), path.join(targetRoot, "references"), { recursive: true });
     await cp(path.join(postRoot, "assets"), path.join(targetRoot, "assets"), { recursive: true });
+    assert.equal((await checkCompanions({ codexHome })).ready, true);
+
+    await mkdir(path.dirname(candidateRoot), { recursive: true });
+    await cp(candidateSource, candidateRoot, { recursive: true });
     const before = await validateCandidate(candidateRoot);
     assert.equal(before.valid, true, JSON.stringify(before.errors));
     await markApproved(candidateRoot, { confirmHumanReview: true, confirmedBy: "Integration reviewer" });
@@ -580,15 +740,32 @@ test("one candidate validates, approves, and installs through the target skill",
     const validator = await import(pathToFileURL(path.join(postRoot, "scripts", "validate-style-bundle.mjs")));
     const installer = await import(pathToFileURL(path.join(postRoot, "scripts", "install-style-bundle.mjs")));
     assert.equal(validator.validateStyleBundle({ bundleDir: candidateRoot, skillRoot: targetRoot }).candidate.style.id, "quiet-grid");
+
+    const conflict = path.join(targetRoot, "references", "styles", "quiet-grid.md");
+    await writeFile(conflict, "existing file\n");
+    assert.throws(
+      () => installer.installStyleBundle({ bundleDir: candidateRoot, skillRoot: targetRoot }),
+      /will not overwrite existing file/,
+    );
+    assert.equal(JSON.parse(await readFile(path.join(candidateRoot, "candidate.json"), "utf8")).status, "approved");
+    await rm(conflict);
+
     const installed = installer.installStyleBundle({ bundleDir: candidateRoot, skillRoot: targetRoot });
     assert.equal(installed.styleId, "quiet-grid");
     assert.equal(JSON.parse(await readFile(path.join(candidateRoot, "candidate.json"), "utf8")).status, "installed");
     const registry = JSON.parse(await readFile(path.join(targetRoot, "references", "style-registry.json"), "utf8"));
+    assert.equal(registry.styles.filter(({ id }) => id === "quiet-grid").length, 1);
     assert.equal(registry.styles.at(-1).provenanceFile, "references/styles/quiet-grid.provenance.json");
+    assert.ok(validator.validateInstalledRegistry({ skillRoot: targetRoot }).styles > 0);
+    await readFile(path.join(targetRoot, "references", "styles", "quiet-grid.md"));
+    await readFile(path.join(targetRoot, "references", "styles", "quiet-grid.spec.json"));
     await readFile(path.join(targetRoot, "references", "styles", "quiet-grid.provenance.json"));
     await readFile(path.join(targetRoot, "assets", "style-references", "quiet-grid.png"));
+    for (const candidateOnlyPath of ["candidate.json", "visual-dna.md", "visual-dna.json", "qa.json", "prompts", "calibration"]) {
+      await assert.rejects(stat(path.join(targetRoot, candidateOnlyPath)), { code: "ENOENT" });
+    }
   } finally {
-    await rm(candidateRoot, { recursive: true, force: true });
-    await rm(targetRoot, { recursive: true, force: true });
+    await rm(candidateSource, { recursive: true, force: true });
+    await rm(codexHome, { recursive: true, force: true });
   }
 });

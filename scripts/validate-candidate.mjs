@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { createHash } from "node:crypto";
+import { realpathSync } from "node:fs";
 import { lstat, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -81,6 +82,18 @@ const FILE_MANIFEST = Object.freeze({
   styleReference: "calibration/style-reference.png",
   qa: "qa.json",
 });
+const STYLE_SECTION_HEADINGS = Object.freeze([
+  "Purpose",
+  "Visual Character",
+  "Palette Roles",
+  "Typography",
+  "Composition Grammar",
+  "Components And Illustration",
+  "Texture And Material",
+  "Platform Geometry",
+  "Debranding And Prohibitions",
+  "Calibration Guidance",
+]);
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".avif", ".heic", ".tif", ".tiff"]);
 const ALLOWED_IMAGES = new Set([
   "calibration/concept.png",
@@ -198,9 +211,95 @@ async function loadJson(root, relative, field, errors) {
 
 async function requireNonEmptyText(root, relative, field, errors) {
   const resolved = await inspectFile(root, relative, field, errors);
-  if (!resolved) return;
+  if (!resolved) return null;
   const value = await readFile(resolved, "utf8");
   if (!value.trim()) issue(errors, field, "must not be empty", "empty-file");
+  return value;
+}
+
+function scanMarkdownHeadings(markdown) {
+  const lines = markdown.split(/\r?\n/);
+  const headings = [];
+  let fence = null;
+  for (const [lineIndex, line] of lines.entries()) {
+    const fenceMatch = line.match(/^[ \t]{0,3}(`{3,}|~{3,})(.*)$/);
+    if (fence) {
+      if (fenceMatch
+        && fenceMatch[1][0] === fence.marker
+        && fenceMatch[1].length >= fence.length
+        && !fenceMatch[2].trim()) {
+        fence = null;
+      }
+      continue;
+    }
+    if (fenceMatch) {
+      fence = { marker: fenceMatch[1][0], length: fenceMatch[1].length };
+      continue;
+    }
+    const headingMatch = line.match(/^[ \t]{0,3}(#{1,6})(?:[ \t]+|$)(.*)$/);
+    if (!headingMatch) continue;
+    headings.push({
+      level: headingMatch[1].length,
+      text: headingMatch[2].replace(/[ \t]+#+[ \t]*$/, "").trim(),
+      lineIndex,
+    });
+  }
+  return { lines, headings };
+}
+
+function sectionHasBody(lines, startLine, endLine) {
+  let fence = null;
+  for (let lineIndex = startLine; lineIndex < endLine; lineIndex += 1) {
+    const line = lines[lineIndex];
+    const fenceMatch = line.match(/^[ \t]{0,3}(`{3,}|~{3,})(.*)$/);
+    if (fence) {
+      if (fenceMatch
+        && fenceMatch[1][0] === fence.marker
+        && fenceMatch[1].length >= fence.length
+        && !fenceMatch[2].trim()) {
+        fence = null;
+      } else if (line.trim()) {
+        return true;
+      }
+      continue;
+    }
+    if (fenceMatch) {
+      fence = { marker: fenceMatch[1][0], length: fenceMatch[1].length };
+      continue;
+    }
+    if (!line.trim() || /^[ \t]{0,3}#{1,6}(?:[ \t]+|$)/.test(line)) continue;
+    return true;
+  }
+  return false;
+}
+
+function validateStyleMarkdown(markdown, style, errors) {
+  if (!isNonEmptyString(markdown) || !isObject(style)) return;
+  const { lines, headings } = scanMarkdownHeadings(markdown);
+  const h1Headings = headings.filter((heading) => heading.level === 1);
+  const h2Headings = headings.filter((heading) => heading.level === 2);
+  if (!isNonEmptyString(style.displayName)
+    || h1Headings.length !== 1
+    || h1Headings[0].text !== style.displayName
+    || (h2Headings.length > 0 && h1Headings[0].lineIndex > h2Headings[0].lineIndex)) {
+    issue(errors, "style.md.h1", `must contain exactly one H1 equal to candidate.style.displayName (${style.displayName ?? ""}) before all H2 sections`, "invalid-style-contract");
+  }
+
+  const actualSections = h2Headings.map((heading) => heading.text);
+  if (actualSections.length !== STYLE_SECTION_HEADINGS.length
+    || actualSections.some((heading, index) => heading !== STYLE_SECTION_HEADINGS[index])) {
+    issue(errors, "style.md.sections", `must contain exactly these H2 sections in order: ${STYLE_SECTION_HEADINGS.join(", ")}`, "invalid-style-contract");
+  }
+
+  for (const [index, expectedHeading] of STYLE_SECTION_HEADINGS.entries()) {
+    const matches = h2Headings.filter((heading) => heading.text === expectedHeading);
+    if (matches.length !== 1) continue;
+    const section = matches[0];
+    const nextSection = h2Headings.find((heading) => heading.lineIndex > section.lineIndex);
+    if (!sectionHasBody(lines, section.lineIndex + 1, nextSection?.lineIndex ?? lines.length)) {
+      issue(errors, `style.md.sections[${index}]`, `${expectedHeading} must contain non-empty body content`, "empty-style-section");
+    }
+  }
 }
 
 function crc32(buffer) {
@@ -813,7 +912,8 @@ export async function validateCandidate(candidateDirectory, options = {}) {
       }
     }
   } else {
-    await requireNonEmptyText(root, "style.md", "style.md", errors);
+    const styleMarkdown = await requireNonEmptyText(root, "style.md", "style.md", errors);
+    validateStyleMarkdown(styleMarkdown, style, errors);
     for (const id of CALIBRATION_IDS) await requireNonEmptyText(root, `prompts/${id}.md`, `prompts/${id}.md`, errors);
     const spec = await loadJson(root, "style.spec.json", "style.spec.json", errors);
     validateStyleSpec(spec, style, errors);
@@ -888,5 +988,6 @@ async function main() {
   if (!result.valid) process.exitCode = 1;
 }
 
-const isCli = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const isCli = process.argv[1]
+  && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
 if (isCli) await main();

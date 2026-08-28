@@ -2,11 +2,11 @@
 
 中文 | [English](README_EN.md)
 
-Visual Builder 是一个面向 Codex 的视觉模板构建技能。它将用户提供的设计图，或已有的 `visual_dna_system` 文档，转换为去品牌化、适配指定内容平台的插画风格候选包。候选包可以独立完成审核与批准，也可以选择交给 `post-illustration-images` 注册和用于生产配图。
+Visual Builder 是一个面向 Codex 的视觉风格入库总控技能。它将用户提供的设计图，或已有的 `visual_dna_system` 文档，转换为去品牌化、适配指定内容平台的插画风格候选包；三图校准通过并获人工批准后，直接注册到本地 `post-illustration-images` 用于生产配图。
 
 它提取的是可复用的视觉语法，而不是对原图进行像素级复刻。源图中的品牌、主题、文案、专有名词和身份元素不会进入最终模板。
 
-## 安装与推荐搭配
+## 安装与强制依赖
 
 使用 Codex 内置的 `skill-installer` 安装 Visual Builder：
 
@@ -17,17 +17,26 @@ python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/inst
   --name visual-builder
 ```
 
-Visual Builder 可以单独运行，同时推荐搭配两个可选 skill：
+联系表渲染还要求系统 `PATH` 中存在 `rsvg-convert`（由 `librsvg` 提供）。macOS 使用 Homebrew 时可运行 `brew install librsvg`。预检会在创建候选之前验证该命令。
 
-| 位置 | Skill | 作用 | 缺失时的行为 |
-| --- | --- | --- | --- |
-| 上游 | `visual-dna-system` | 从设计图提取更完整的 Visual DNA | 使用 Visual Builder 内置的精简提取流程 |
-| 当前 | `visual-builder` | 编译、校准、验证并批准候选模板 | 独立完成到可移植的 `approved` 候选包 |
-| 下游 | [`post-illustration-images`](https://github.com/BruceL017/post-illustration-images) | 注册批准的样式并用于生产配图 | 保留批准候选包，但不注册或生产配图 |
+完整流程要求本地同时安装三个 skill：
 
-`visual-dna-system` 目前没有公开安装地址；如果你的环境已有可信的仓库 URL 或路径，可以从该来源安装，并将目标名称设为 `visual-dna-system`。不要使用未经确认的同名仓库。
+| 位置 | Skill | 作用 |
+| --- | --- | --- |
+| 上游 | [`visual-dna-system`](https://github.com/BruceL017/visual-dna-skills) | 从设计图提取完整、去品牌化的 Visual DNA |
+| 当前 | `visual-builder` | 编译、校准、验证并管理人工审批 |
+| 下游 | [`post-illustration-images`](https://github.com/BruceL017/post-illustration-images) | 注册批准的样式并用于生产配图 |
 
-安装公开的下游 skill：
+安装上游提炼 skill：
+
+```bash
+python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
+  --repo BruceL017/visual-dna-skills \
+  --path skills/visual-dna-system \
+  --name visual-dna-system
+```
+
+安装下游生产 skill：
 
 ```bash
 python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
@@ -36,7 +45,7 @@ python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/inst
   --name post-illustration-images
 ```
 
-每个任务首次调用 Visual Builder 时，它会检测这两个可选 skill。只有缺失项会被推荐；提示不会自动安装、不会暂停任务，也不会在同一任务内重复。
+每次显式调用 `$visual-builder` 时，它会先检查三个 skill、下游验证/安装脚本和 `rsvg-convert`。任一依赖缺失时，流程会在创建候选之前停止；skill 缺失会列出官方安装来源并请求一次确认，运行时缺失会报告对应系统包。复检通过后在当前任务继续，不使用内置降级流程。
 
 ## 核心能力
 
@@ -61,19 +70,20 @@ python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/inst
 
 ## 工作流程
 
-1. 明确输入模式、来源、目标平台和输出目录。
-2. 提取或验证 Visual DNA，并通过设计信号与来源完整性检查。
-3. 建议去品牌化的候选名称、用途和别名。
-4. 编译样式文档、平台几何、提示词和候选元数据。
-5. 独立生成概念、流程和清单三张校准图。
-6. 执行机器 QA，选择最佳参考图并构建联系表。
-7. 验证完整候选包，等待人工审核。
-8. 人工明确批准后交付可移植候选包；只有用户要求并且下游可用时才执行安装。
+1. 检查三个本地 skill 和联系表运行时，必要时经确认安装缺失项并复检。
+2. 明确输入模式、来源和目标平台。
+3. 使用 `visual-dna-system` 提取或验证 Visual DNA，并通过设计信号与来源完整性检查。
+4. 建议去品牌化的候选名称、用途和别名。
+5. 编译样式文档、平台几何、提示词和候选元数据。
+6. 独立生成概念、流程和清单三张校准图。
+7. 执行机器 QA，选择最佳参考图并构建联系表。
+8. 验证完整候选包，等待人工审核。
+9. 人工明确批准后立即标记 `approved`、验证并注册到下游；成功后状态为 `installed`。
 
 ## 候选包结构
 
 ```text
-visual-builder-output/<style_id>/
+${CODEX_HOME:-$HOME/.codex}/visual-builder-candidates/<style_id>/
 ├── candidate.json
 ├── visual-dna.md
 ├── visual-dna.json
@@ -95,13 +105,15 @@ visual-builder-output/<style_id>/
 
 候选状态依次为 `draft`、`ready_for_review`、`approved` 和 `installed`；未通过硬性检查时使用 `blocked`。生成完成不等于审核完成，机器验证通过也不能替代人工批准。
 
+人工批准同时授权下游验证和安装，不再进行第二次注册确认。安装失败时完整候选仍保留在固定候选库且状态保持 `approved`；安装成功后状态变为 `installed`。下游只保存样式 Markdown、spec、provenance、选定参考图和注册表/索引，不复制 Visual DNA、提示词、QA 或整套校准图。
+
 ## 使用方式
 
-将本仓库作为 Codex 技能加载，然后通过明确的输入参数调用。例如：
+本 skill 仅在显式写出 `$visual-builder` 时调用。例如：
 
 ```text
-使用 $visual-builder，把这张 1080 x 1440 的知识卡片构建为小红书插画模板候选。
-移除原品牌和文案，保留纸张质感、编辑式层级和留白节奏，并在生成校准图后停下来等待审核。
+使用 $visual-builder，把这张 1080 x 1440 的知识卡片构建为小红书插画风格。
+移除原品牌和文案，保留纸张质感、编辑式层级和留白节奏；生成三张校准图后停下来，批准后直接注册到本地 post-illustration-images。
 ```
 
 必填输入：
@@ -109,14 +121,21 @@ visual-builder-output/<style_id>/
 - `input_mode`：`image` 或 `visual-dna`
 - `source`：图片路径，或包含 `visual_dna_system` 的 JSON/Markdown
 - `target_platform`：`wechat`、`xhs`、`zhihu`、`weibo` 或 `toutiao`
-- `output_root`：候选包输出目录
+
+新候选固定写入 `${CODEX_HOME:-$HOME/.codex}/visual-builder-candidates/<style_id>`。跨任务续跑时，提供 `style_id`；旧候选也可通过绝对路径恢复。Visual Builder 不搜索其他目录，也不覆盖同名候选。
 
 ## 本地验证
 
 运行测试：
 
 ```bash
-node --test tests/validate-candidate.test.mjs
+node --test tests/*.test.mjs
+```
+
+检查三个本地 skill：
+
+```bash
+node scripts/check-companions.mjs --json
 ```
 
 验证候选包：

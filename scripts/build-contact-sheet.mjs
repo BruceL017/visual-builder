@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-import { mkdirSync, readFileSync, renameSync, rmSync } from "node:fs";
+import { mkdirSync, readFileSync, realpathSync, renameSync, rmSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
 const items = ["concept", "process", "checklist"];
@@ -79,7 +79,8 @@ export function buildContactSheet({ concept, process, checklist, output }) {
   return { output: outputPath, width: sheetWidth, height: sheetHeight };
 }
 
-const isMain = process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
+const isMain = process.argv[1]
+  && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
 if (isMain) {
   try {
     console.log(JSON.stringify(buildContactSheet(parseArgs(process.argv.slice(2))), null, 2));
